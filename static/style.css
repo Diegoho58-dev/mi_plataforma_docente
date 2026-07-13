@@ -1,1 +1,27 @@
+body {
+  background-color: #0d0d0d;
+  color: #00ffcc;
+  font-family: 'Courier New', monospace;
+  text-align: center;
+}
+.robot-header h1 {
+  animation: glow 2s infinite alternate;
+}
+@keyframes glow {
+  from { text-shadow: 0 0 10px #00ffcc; }
+  to { text-shadow: 0 0 20px #00ffff; }
+}
+button {
+  background: #111;
+  border: 1px solid #00ffcc;
+  color: #00ffcc;
+  padding: 10px 20px;
+  margin: 10px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+button:hover {
+  background: #00ffcc;
+  color: #111;
+}
 
