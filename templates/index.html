@@ -41,7 +41,7 @@
 
         <div class="dashboard-grid">
           <section class="panel classes-panel" id="clases">
-            <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><button class="filter active" type="button">Todas</button><button class="filter" type="button">Alta</button><button class="filter" type="button">Multigrado</button><button class="filter" type="button">Técnico Laboral</button><button class="filter" type="button">Comunidad Terapéutica</button></div></div>
+            <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><a class="filter {{ 'active' if not context_filter else '' }}" href="{{ url_for('home') }}#clases">Todas</a><a class="filter {{ 'active' if context_filter == 'Alta' else '' }}" href="{{ url_for('home', context='Alta') }}#clases">Alta</a><a class="filter {{ 'active' if context_filter == 'Multigrado' else '' }}" href="{{ url_for('home', context='Multigrado') }}#clases">Multigrado</a><a class="filter {{ 'active' if context_filter == 'Técnico Laboral' else '' }}" href="{{ url_for('home', context='Técnico Laboral') }}#clases">Técnico Laboral</a><a class="filter {{ 'active' if context_filter == 'Comunidad Terapéutica' else '' }}" href="{{ url_for('home', context='Comunidad Terapéutica') }}#clases">Comunidad Terapéutica</a></div></div>
             <div class="class-table">
               <div class="table-row table-head"><span>Fecha y ciclo</span><span>Contexto</span><span>Grupo</span><span>Asignatura</span><span>Tema / novedad</span></div>
               {% for item in classes[:10] %}
