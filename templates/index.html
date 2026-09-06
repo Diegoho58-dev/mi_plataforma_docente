@@ -28,7 +28,7 @@
     <main class="main-content">
       <header class="topbar"><button class="mobile-menu" type="button" aria-label="Abrir menú">☰</button><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026⌄</span></header>
       <div class="page-content">
-        <section class="welcome-section"><p class="eyebrow">PANEL DOCENTE</p><h1>Buenos días, Diego</h1><p class="subtitle">Resumen de tu actividad docente</p></section>
+        <section class="welcome-section"><p class="eyebrow">PANEL DOCENTE</p><h1>Buenos días, Diego</h1><p class="subtitle">Resumen de tu actividad docente</p><div class="cycle-banner"><div><span class="cycle-label">CICLO ACTUAL</span><strong>Ciclo {{ current_cycle.cycle }}</strong></div><div><span class="cycle-label">SEMANA DEL CICLO</span><strong>Semana {{ current_cycle.week }} de 3</strong></div><div><span class="cycle-note">Inicio del primer ciclo: 6 de julio de 2026 · Cada viernes cierra la semana</span></div></div></section>
 
         {% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>La estructura del panel está lista, pero los datos aparecerán cuando Render pueda leer el archivo privado.</small></div>{% endif %}
 
@@ -43,9 +43,9 @@
           <section class="panel classes-panel" id="clases">
             <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><button class="filter active" type="button">Todas</button><button class="filter" type="button">Alta</button><button class="filter" type="button">Multigrado</button><button class="filter" type="button">Técnico Laboral</button><button class="filter" type="button">Comunidad Terapéutica</button></div></div>
             <div class="class-table">
-              <div class="table-row table-head"><span>Fecha</span><span>Contexto</span><span>Grupo</span><span>Asignatura</span><span>Tema</span></div>
+              <div class="table-row table-head"><span>Fecha y ciclo</span><span>Contexto</span><span>Grupo</span><span>Asignatura</span><span>Tema / novedad</span></div>
               {% for item in classes[:10] %}
-              <div class="table-row"><span>{{ item.date_label }}</span><span><b class="tag {{ item.context_class }}">{{ item.context }}</b></span><span>{{ item.group }}</span><span>{{ item.subject }}</span><span>{{ item.theme }}</span></div>
+              <div class="table-row"><span>{{ item.date_label }}{% if item.cycle %}<small class="cycle-row">Ciclo {{ item.cycle }} · Semana {{ item.cycle_week }} de 3</small>{% endif %}</span><span><b class="tag {{ item.context_class }}">{{ item.context }}</b></span><span>{{ item.group }}</span><span>{{ item.subject }}</span><span>{% if item.no_class %}<b class="no-class-label">No hubo clase</b><br><small>{{ item.novelty }}</small>{% else %}{{ item.theme }}{% if item.observations %}<small class="row-note">{{ item.observations }}</small>{% endif %}{% endif %}</span></div>
               {% else %}
               <div class="empty-state">No hay clases para mostrar todavía.</div>
               {% endfor %}
@@ -53,7 +53,7 @@
           </section>
 
           <aside class="right-column">
-            <section class="panel next-class"><h2><span class="heading-icon">▣</span>Última clase registrada</h2>{% if classes %}{% set latest = classes[0] %}<div class="next-class-box"><div class="date-box"><strong>{{ latest.date.day }}</strong><span>{{ latest.date.strftime('%b')|upper }}</span></div><div><b class="tag {{ latest.context_class }}">{{ latest.context }}</b><h3>{{ latest.group }}</h3><p>{{ latest.subject }} · {{ latest.theme }}</p></div></div>{% if latest.drive_link %}<a class="primary-button button-link" href="{{ latest.drive_link }}" target="_blank" rel="noopener">Abrir material</a>{% else %}<div class="primary-button disabled-button">Sin enlace de material</div>{% endif %}{% else %}<div class="empty-state">Se mostrará cuando haya una clase válida en el Excel.</div>{% endif %}</section>
+            <section class="panel next-class"><h2><span class="heading-icon">▣</span>Última clase registrada</h2>{% if classes %}{% set latest = classes[0] %}<div class="next-class-box"><div class="date-box"><strong>{{ latest.date.day }}</strong><span>{{ latest.date.strftime('%b')|upper }}</span></div><div><b class="tag {{ latest.context_class }}">{{ latest.context }}</b><h3>{{ latest.group }}</h3><p>{% if latest.no_class %}<b>No hubo clase.</b> {{ latest.novelty }}{% else %}{{ latest.subject }} · {{ latest.theme }}{% endif %}</p></div></div>{% if latest.drive_link %}<a class="primary-button button-link" href="{{ latest.drive_link }}" target="_blank" rel="noopener">Abrir material</a>{% else %}<div class="primary-button disabled-button">Sin enlace de material</div>{% endif %}{% else %}<div class="empty-state">Se mostrará cuando haya una clase válida en el Excel.</div>{% endif %}</section>
             <section class="panel follow-up" id="seguimiento"><h2><span class="heading-icon gold-text">♧</span>Fuente de datos</h2><div class="follow-row"><span class="follow-icon">✓</span><div><strong>Excel privado de Google Drive</strong><small>{{ 'Lectura correcta del archivo' if not data_error else 'Revisa las variables de Render' }}</small></div></div><div class="follow-row"><span class="follow-icon">▤</span><div><strong>Actualización</strong><small>Se consulta al abrir el panel</small></div></div></section>
           </aside>
         </div>
