@@ -216,6 +216,14 @@ def read_student_records(buffer):
                 "identification": identification,
                 "group": group,
                 "context": "Multigrado" if normalized_sheet == "mult. asistencia" or "multigrado" in group.lower() else "Alta",
+                "date": parse_date(values[0]) if len(values) > 0 else None,
+                "date_label": format_date(values[0]) if len(values) > 0 and parse_date(values[0]) else "",
+                "clei": clean_text(values[4]) if len(values) > 4 else "",
+                "science_attendance": clean_text(values[6]) if len(values) > 6 else "",
+                "science_grade": clean_text(values[7]) if len(values) > 7 else "",
+                "math_attendance": clean_text(values[8]) if len(values) > 8 else "",
+                "math_grade": clean_text(values[9]) if len(values) > 9 else "",
+                "observation": clean_text(values[10]) if len(values) > 10 else "",
             })
     return records
 
@@ -282,6 +290,41 @@ def home():
     context_filter = request.args.get("context", "").strip()
     data = get_dashboard_data(context_filter)
     return render_template("index.html", current_user=session.get("user"), **data)
+
+
+@app.route("/grupos")
+@login_required
+def grupos():
+    try:
+        buffer, metadata = download_excel_from_drive()
+        records = read_student_records(buffer)
+        group_filter = request.args.get("grupo", "").strip()
+        groups = sorted({item["group"] for item in records if item["group"]})
+        if group_filter not in groups:
+            group_filter = ""
+        visible_records = [item for item in records if not group_filter or item["group"] == group_filter]
+        return render_template(
+            "grupos.html",
+            current_user=session.get("user"),
+            records=visible_records,
+            groups=groups,
+            group_filter=group_filter,
+            total_records=len(visible_records),
+            data_error=None,
+            drive_updated=metadata.get("modifiedTime", ""),
+        )
+    except Exception:
+        app.logger.exception("No se pudo leer estudiantes para Mis grupos")
+        return render_template(
+            "grupos.html",
+            current_user=session.get("user"),
+            records=[],
+            groups=[],
+            group_filter="",
+            total_records=0,
+            data_error="No se pudo leer el Excel desde Google Drive.",
+            drive_updated="",
+        )
 
 
 if __name__ == "__main__":
