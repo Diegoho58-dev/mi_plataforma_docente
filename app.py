@@ -57,6 +57,10 @@ def parse_date(value):
 
 def classify_context(sheet_name, group):
     text = f"{sheet_name} {group}".lower()
+    if "tecnico laboral" in text:
+        return "Técnico Laboral"
+    if "comunidad terapeutica" in text:
+        return "Comunidad Terapéutica"
     return "Multigrado" if "multigrado" in text else "Alta"
 
 
@@ -102,7 +106,7 @@ def read_planning_rows(buffer):
             if not any(clean_text(value) for value in values):
                 continue
             if normalized_sheet in {"tecnico laboral", "comunidad terapeutica"}:
-                group = clean_text(values[0]) if len(values) > 0 else sheet_name
+                group = sheet_name
                 subject = clean_text(values[0]) if len(values) > 0 else ""
                 class_date = values[1] if len(values) > 1 else None
                 theme = clean_text(values[2]) if len(values) > 2 else ""
@@ -124,7 +128,12 @@ def read_planning_rows(buffer):
                 "date": parse_date(class_date),
                 "date_label": format_date(class_date),
                 "context": context,
-                "context_class": "multi" if context == "Multigrado" else "alta",
+                "context_class": {
+                    "Multigrado": "multi",
+                    "Técnico Laboral": "tecnico",
+                    "Comunidad Terapéutica": "terapeutica",
+                    "Alta": "alta",
+                }[context],
                 "group": group or sheet_name,
                 "subject": subject or "Sin asignatura",
                 "theme": theme or "Sin tema registrado",
