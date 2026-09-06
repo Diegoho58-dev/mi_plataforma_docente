@@ -3,60 +3,351 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Panel Docente</title>
-  <p>Bienvenido, {{ current_user }}</p>
-<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> 
+  <title>Panel Docente | Diego Hoyos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <!-- Menú lateral -->
-  <aside class="sidebar">
-    <div class="profile">
-    <img src="{{ url_for('static', filename='docente.jpg') }}" alt="Foto del docente">
-      <h3>Diego Hoyos</h3>
-      <p>Docente de Matemáticas y Ciencias Naturales</p>
-    </div>
-    <ul class="menu">
-      <li><a href="#">Inicio</a></li>
-      <li><a href="#">Mi Horario</a></li>
-      <li><a href="#">Grupos</a></li>
-      <li><a href="#">Materiales</a></li>
-      <li><a href="#">Evaluaciones</a></li>
-      <li><a href="#">Asistencia</a></li>
-      <li><a href="#">Perfil</a></li>
-      <li> <a href="{{ url_for('logout') }}">Cerrar sesión</a> </li>
-    </ul>
-  </aside>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">▰</div>
+        <div>
+          <strong>AulaCol</strong>
+          <span>Plataforma Docente</span>
+        </div>
+      </div>
 
-  <!-- Contenido principal -->
-  <main class="content">
-    <h1>Panel del Docente</h1>
-    
-    <section class="card">
-      <h2>📅 Mi Horario</h2>
-      <table>
-        <tr><th>Día</th><th>Hora</th><th>Grupo</th><th>Asignatura</th></tr>
-        <tr><td>Lunes</td><td>8:00</td><td>CLEI 3</td><td>Matemáticas</td></tr>
-        <tr><td>Martes</td><td>9:30</td><td>CLEI 5-6</td><td>Ciencias Naturales</td></tr>
-        <tr><td>Jueves</td><td>8:00</td><td>CLEI 5-6</td><td>Ciencias Naturales</td></tr>
-      </table>
-    </section>
+      <div class="profile">
+        <img
+          src="{{ url_for('static', filename='docente.jpg') }}"
+          alt="Imagen del docente"
+        >
+        <h2>Diego Hoyos</h2>
+        <p>
+          Docente de Matemáticas  
 
-    <section class="card">
-      <h2>👥 Mis Grupos</h2>
-      <ul>
-        <li>CLEI 3 - Matemáticas</li>
-        <li>CLEI 5-6 - Ciencias Naturales</li>
-        <li>Multigrado - Ciencias Naturales</li>
-      </ul>
-    </section>
+          y Ciencias Naturales
+        </p>
+      </div>
 
-    <section class="card">
-      <h2>⚡ Accesos Rápidos</h2>
-      <button>Subir Material</button>
-      <button>Crear Evaluación</button>
-      <button>Ver Asistencia</button>
-    </section>
-  </main>
+      <nav class="menu" aria-label="Navegación principal">
+        <a class="menu-item active" href="{{ url_for('home') }}">
+          <span class="menu-icon">⌂</span>
+          Inicio
+        </a>
+
+        <a class="menu-item" href="#clases">
+          <span class="menu-icon">▤</span>
+          Mis clases
+        </a>
+
+        <a class="menu-item" href="#alta">
+          <span class="menu-icon">⌂</span>
+          Alta
+        </a>
+
+        <a class="menu-item" href="#multigrado">
+          <span class="menu-icon">♧</span>
+          Multigrado
+        </a>
+
+        <a class="menu-item" href="#grupos">
+          <span class="menu-icon">♧</span>
+          Mis grupos
+        </a>
+
+        <a class="menu-item" href="#estudiantes">
+          <span class="menu-icon">♙</span>
+          Estudiantes
+        </a>
+
+        <a class="menu-item" href="#asistencia">
+          <span class="menu-icon">✓</span>
+          Asistencia
+        </a>
+
+        <a class="menu-item" href="#seguimiento">
+          <span class="menu-icon">⌁</span>
+          Seguimiento
+        </a>
+
+        <a class="menu-item" href="#materiales">
+          <span class="menu-icon">□</span>
+          Materiales
+        </a>
+      </nav>
+
+      <a class="logout" href="{{ url_for('logout') }}">
+        <span class="menu-icon">↪</span>
+        Cerrar sesión
+      </a>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button
+          class="mobile-menu"
+          type="button"
+          aria-label="Abrir menú"
+        >
+          ☰
+        </button>
+
+        <div class="topbar-spacer"></div>
+
+        <span class="academic-year">
+          Año académico 2026⌄
+        </span>
+      </header>
+
+      <div class="page-content">
+        <section class="welcome-section">
+          <p class="eyebrow">PANEL DOCENTE</p>
+
+          <h1>Buenos días, Diego</h1>
+
+          <p class="subtitle">
+            Resumen de tu actividad docente
+          </p>
+        </section>
+
+        <section class="stats-grid" aria-label="Resumen">
+          <article class="stat-card">
+            <div class="stat-icon green">▤</div>
+
+            <div>
+              <strong>42</strong>
+              <span>
+                Clases registradas  
+
+                en el Excel
+              </span>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-icon green">♧</div>
+
+            <div>
+              <strong>6</strong>
+              <span>
+                Grupos activos  
+
+                en tus registros
+              </span>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-icon teal">♙</div>
+
+            <div>
+              <strong>897</strong>
+              <span>
+                Registros de estudiantes  
+
+                para seguimiento
+              </span>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-icon gold">!</div>
+
+            <div>
+              <strong>—</strong>
+              <span>
+                Pendientes  
+
+                por revisar
+              </span>
+            </div>
+          </article>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="panel classes-panel" id="clases">
+            <div class="panel-heading">
+              <h2>
+                <span class="heading-icon">▣</span>
+                Clases recientes
+              </h2>
+
+              <div class="filters" aria-label="Filtrar clases">
+                <button class="filter active" type="button">
+                  Todas
+                </button>
+
+                <button class="filter" type="button">
+                  Alta
+                </button>
+
+                <button class="filter" type="button">
+                  Multigrado
+                </button>
+              </div>
+            </div>
+
+            <div class="class-table">
+              <div class="table-row table-head">
+                <span>Fecha</span>
+                <span>Contexto</span>
+                <span>Grupo</span>
+                <span>Asignatura</span>
+                <span>Tema</span>
+              </div>
+
+              <div class="table-row">
+                <span>4 sep. 2026</span>
+                <span>
+                  <b class="tag alta">Alta</b>
+                </span>
+                <span>Técnico Laboral</span>
+                <span>Nómina y trabajo</span>
+                <span>Contratos y nóminas</span>
+              </div>
+
+              <div class="table-row">
+                <span>3 sep. 2026</span>
+                <span>
+                  <b class="tag multi">Multigrado</b>
+                </span>
+                <span>Multigrado</span>
+                <span>Ciencias Naturales</span>
+                <span>Temas de repaso</span>
+              </div>
+
+              <div class="table-row">
+                <span>1 sep. 2026</span>
+                <span>
+                  <b class="tag alta">Alta</b>
+                </span>
+                <span>Comunidad Terapéutica</span>
+                <span>Matemáticas</span>
+                <span>Números enteros y funciones</span>
+              </div>
+
+              <div class="table-row">
+                <span>28 ago. 2026</span>
+                <span>
+                  <b class="tag alta">Alta</b>
+                </span>
+                <span>Técnico Laboral</span>
+                <span>Administración</span>
+                <span>Contenidos introductorios</span>
+              </div>
+
+              <div class="table-row">
+                <span>26 ago. 2026</span>
+                <span>
+                  <b class="tag alta">Alta</b>
+                </span>
+                <span>CLEI 5-6</span>
+                <span>Matemáticas</span>
+                <span>Conjuntos numéricos</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="right-column">
+            <section class="panel next-class">
+              <h2>
+                <span class="heading-icon">▣</span>
+                Próxima clase
+              </h2>
+
+              <div class="next-class-box">
+                <div class="date-box">
+                  <strong>—</strong>
+                  <span>Por definir</span>
+                </div>
+
+                <div>
+                  <b class="tag multi">Multigrado</b>
+
+                  <h3>Próxima jornada</h3>
+
+                  <p>
+                    Se definirá con el registro de clases.
+                  </p>
+                </div>
+              </div>
+
+              <button class="primary-button" type="button">
+                Ver detalles
+              </button>
+            </section>
+
+            <section class="panel follow-up" id="seguimiento">
+              <h2>
+                <span class="heading-icon gold-text">♧</span>
+                Seguimiento pendiente
+              </h2>
+
+              <div class="follow-row">
+                <span class="follow-icon">♧</span>
+
+                <div>
+                  <strong>Registros de asistencia</strong>
+                  <small>
+                    Se revisarán desde el Excel
+                  </small>
+                </div>
+
+                <b class="counter">—</b>
+              </div>
+
+              <div class="follow-row">
+                <span class="follow-icon">▤</span>
+
+                <div>
+                  <strong>Observaciones</strong>
+                  <small>
+                    Seguimiento pedagógico y convivencial
+                  </small>
+                </div>
+
+                <b class="counter">—</b>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <section class="contexts-grid" id="grupos">
+          <article class="context-card alta-card" id="alta">
+            <div class="context-icon">⌂</div>
+
+            <div>
+              <h2>Alta</h2>
+
+              <p>
+                CLEI 2, CLEI 3A, CLEI 3B, CLEI 4 y CLEI 5-6
+              </p>
+
+              <small>
+                Clases y grupos organizados por CLEI.
+              </small>
+            </div>
+          </article>
+
+          <article class="context-card multi-card" id="multigrado">
+            <div class="context-icon">♧</div>
+
+            <div>
+              <h2>Multigrado</h2>
+
+              <p>
+                Atención parcial por CLEI o maratón multigrado
+              </p>
+
+              <small>
+                Jornadas flexibles según los estudiantes atendidos.
+              </small>
+            </div>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
 </body>
 </html>
-
