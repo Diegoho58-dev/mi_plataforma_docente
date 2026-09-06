@@ -6,22 +6,32 @@
   <title>Mis grupos | Panel Docente</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
-    .groups-toolbar { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:20px; }
+    .groups-toolbar { display:flex; align-items:end; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
     .groups-toolbar label { display:block; margin-bottom:6px; color:var(--muted); font-size:12px; font-weight:700; }
-    .groups-toolbar select { min-width:280px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; }
+    .groups-toolbar select { min-width:240px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:#fff; font:inherit; }
     .groups-toolbar .primary-button { width:auto; margin:0; padding:11px 18px; }
     .group-summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
     .group-summary-card { padding:14px 18px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:var(--shadow); }
     .group-summary-card strong { display:block; color:var(--ink); font-size:22px; }
     .group-summary-card span { color:var(--muted); font-size:12px; }
-    .student-table { overflow:auto; }
-    .student-table table { width:100%; min-width:980px; border-collapse:collapse; }
-    .student-table th, .student-table td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:12px; }
-    .student-table th { color:var(--ink); background:#f8fafb; font-size:11px; }
-    .student-table td strong { display:block; }
-    .student-table td small { display:block; margin-top:4px; color:var(--muted); line-height:1.35; }
-    .grade { font-weight:800; color:var(--green-dark); }
     .notice { margin-bottom:18px; padding:13px 16px; border-radius:8px; color:#7a5a13; background:#fff8e4; }
+    .matrix-wrap { overflow:auto; }
+    .matrix { width:100%; min-width:760px; border-collapse:collapse; }
+    .matrix th, .matrix td { padding:10px 9px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); text-align:center; vertical-align:middle; font-size:11px; }
+    .matrix th { color:var(--ink); background:#f7fafb; font-size:10px; }
+    .matrix .student-column { position:sticky; left:0; z-index:2; min-width:220px; text-align:left; background:#fff; }
+    .matrix thead .student-column { z-index:3; background:#f7fafb; }
+    .matrix .date-column { min-width:142px; }
+    .matrix .average-column { position:sticky; right:0; z-index:2; min-width:90px; background:#fff; }
+    .matrix thead .average-column { z-index:3; background:#f7fafb; }
+    .student-name { display:block; color:var(--ink); font-size:12px; font-weight:700; }
+    .student-meta { display:block; margin-top:4px; color:var(--muted); font-size:10px; }
+    .cell-line { display:block; line-height:1.4; }
+    .attendance-yes { color:var(--green-dark); font-weight:700; }
+    .attendance-no { color:#b42318; font-weight:700; }
+    .grade { color:var(--green-dark); font-weight:800; }
+    .average { color:var(--navy); font-size:15px; font-weight:800; }
+    .empty-cell { color:#a0aab1; }
   </style>
 </head>
 <body>
@@ -29,25 +39,24 @@
     <aside class="sidebar">
       <div class="brand"><div class="brand-mark">▰</div><div><strong>AulaCol</strong><span>Plataforma Docente</span></div></div>
       <div class="profile"><img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente"><h2>Diego Hoyos</h2><p>Docente de Matemáticas<br>y Ciencias Naturales</p></div>
-      <nav class="menu" aria-label="Navegación principal">
-        <a class="menu-item" href="{{ url_for('home') }}">⌂ <span>Inicio</span></a>
-        <a class="menu-item active" href="{{ url_for('grupos') }}">♧ <span>Mis grupos</span></a>
-        <a class="menu-item" href="{{ url_for('home') }}#clases">▤ <span>Mis clases</span></a>
-      </nav>
+      <nav class="menu" aria-label="Navegación principal"><a class="menu-item" href="{{ url_for('home') }}">⌂ <span>Inicio</span></a><a class="menu-item active" href="{{ url_for('grupos') }}">♧ <span>Mis grupos</span></a><a class="menu-item" href="{{ url_for('home') }}#clases">▤ <span>Mis clases</span></a></nav>
       <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a>
     </aside>
     <main class="main-content">
       <header class="topbar"><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026⌄</span></header>
       <div class="page-content">
-        <section class="welcome-section"><p class="eyebrow">ESTUDIANTES</p><h1>Mis grupos</h1><p class="subtitle">Consulta protegida de los registros cargados desde tu Excel.</p></section>
+        <section class="welcome-section"><p class="eyebrow">ESTUDIANTES</p><h1>Mis grupos por CLEI</h1><p class="subtitle">Consulta asistencia y notas por fecha, directamente desde el Excel.</p></section>
         {% if data_error %}<div class="notice">{{ data_error }}</div>{% endif %}
-        <div class="groups-toolbar"><form method="get" action="{{ url_for('grupos') }}"><label for="grupo">Selecciona un grupo</label><select id="grupo" name="grupo"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select><button class="primary-button" type="submit">Ver grupo</button></form></div>
-        <div class="group-summary"><div class="group-summary-card"><strong>{{ total_records }}</strong><span>Registros mostrados</span></div>{% if group_filter %}<div class="group-summary-card"><strong>{{ group_filter }}</strong><span>Grupo seleccionado</span></div>{% endif %}</div>
-        <section class="panel student-table"><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>CLEI / grupo</th><th>Ciencias Naturales</th><th>Matemáticas / Física</th><th>Observación</th></tr></thead><tbody>{% for item in records[:250] %}<tr><td>{{ item.date_label or 'Sin fecha' }}</td><td><strong>{{ item.name or 'Sin nombre' }}</strong><small>Documento protegido</small></td><td>{{ item.clei or '—' }}<small>{{ item.group }}</small></td><td>{{ item.science_attendance or '—' }}{% if item.science_grade %}<small class="grade">Nota: {{ item.science_grade }}</small>{% endif %}</td><td>{{ item.math_attendance or '—' }}{% if item.math_grade %}<small class="grade">Nota: {{ item.math_grade }}</small>{% endif %}</td><td>{{ item.observation or 'Sin observaciones registradas' }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No hay registros para mostrar.</td></tr>{% endfor %}</tbody></table></section>
-        {% if total_records > 250 %}<p class="subtitle">Se muestran los primeros 250 registros. El total del grupo es {{ total_records }}.</p>{% endif %}
+        <div class="groups-toolbar"><form method="get" action="{{ url_for('grupos') }}"><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Alta y Multigrado</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select><label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos los CLEI</option>{% for clei in cleis %}<option value="{{ clei }}" {% if clei == clei_filter %}selected{% endif %}>CLEI {{ clei }}</option>{% endfor %}</select><button class="primary-button" type="submit">Filtrar</button></form></div>
+        <div class="group-summary"><div class="group-summary-card"><strong>{{ total_records }}</strong><span>Estudiantes mostrados</span></div><div class="group-summary-card"><strong>{{ dates|length }}</strong><span>Fechas de clase</span></div>{% if clei_filter %}<div class="group-summary-card"><strong>CLEI {{ clei_filter }}</strong><span>Filtro activo</span></div>{% endif %}</div>
+        <section class="panel matrix-wrap"><table class="matrix"><thead><tr><th class="student-column">Estudiante</th>{% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}<th class="average-column">Promedio<br>Matemáticas</th><th class="average-column">Promedio<br>Ciencias Naturales</th></tr></thead><tbody>{% for student in matrix %}<tr><td class="student-column"><span class="student-name">{{ student.name or 'Sin nombre' }}</span><span class="student-meta">CLEI {{ student.clei }} · {{ student.group }}</span></td>{% for date_key, date_label in dates %}{% set cell = student.dates.get(date_key) %}<td>{% if cell %}{% if cell.math_attendance or cell.math_grade %}<span class="cell-line {% if cell.math_attendance|lower in ['si', 'sí'] %}attendance-yes{% elif cell.math_attendance|lower == 'no' %}attendance-no{% endif %}">Matemáticas: {{ cell.math_attendance or '—' }}</span>{% if cell.math_grade %}<span class="cell-line grade">Nota: {{ cell.math_grade }}</span>{% endif %}{% elif cell.science_attendance or cell.science_grade %}<span class="cell-line {% if cell.science_attendance|lower in ['si', 'sí'] %}attendance-yes{% elif cell.science_attendance|lower == 'no' %}attendance-no{% endif %}">Ciencias Naturales: {{ cell.science_attendance or '—' }}</span>{% if cell.science_grade %}<span class="cell-line grade">Nota: {{ cell.science_grade }}</span>{% endif %}{% else %}<span class="empty-cell">—</span>{% endif %}{% else %}<span class="empty-cell">—</span>{% endif %}</td>{% endfor %}<td class="average-column">{% if student.math_average is not none %}<span class="average">{{ '%.2f'|format(student.math_average) }}</span>{% else %}<span class="empty-cell">—</span>{% endif %}</td><td class="average-column">{% if student.science_average is not none %}<span class="average">{{ '%.2f'|format(student.science_average) }}</span>{% else %}<span class="empty-cell">—</span>{% endif %}</td></tr>{% else %}<tr><td colspan="{{ dates|length + 3 }}" class="empty-state">No hay estudiantes para mostrar con este filtro.</td></tr>{% endfor %}</tbody></table></section>
+        <p class="subtitle">Cada fecha muestra únicamente la asignatura registrada. Los promedios de Matemáticas y Ciencias Naturales se calculan por separado.</p>
       </div>
     </main>
   </div>
 </body>
 </html>
 
+<style>
+  .matrix .average-column { position:static; }
+</style>
