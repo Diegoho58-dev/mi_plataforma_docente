@@ -210,6 +210,14 @@ def read_student_records(buffer):
             group = clean_text(values[5]) if len(values) > 5 else sheet_name
             if not name and not identification:
                 continue
+            clei_label = {
+                "clei 2": "2",
+                "clei 3a": "3A",
+                "clei3b": "3B",
+                "clei 4": "4",
+                "clei 5-6": "5-6",
+                "mult. asistencia": "Multigrado",
+            }.get(normalized_sheet, clean_text(values[4]) if len(values) > 4 else "")
             records.append({
                 "sheet": sheet_name,
                 "name": name,
@@ -218,7 +226,7 @@ def read_student_records(buffer):
                 "context": "Multigrado" if normalized_sheet == "mult. asistencia" or "multigrado" in group.lower() else "Alta",
                 "date": parse_date(values[0]) if len(values) > 0 else None,
                 "date_label": format_date(values[0]) if len(values) > 0 and parse_date(values[0]) else "",
-                "clei": clean_text(values[4]) if len(values) > 4 else "",
+                "clei": clei_label,
                 "science_attendance": clean_text(values[6]) if len(values) > 6 else "",
                 "science_grade": clean_text(values[7]) if len(values) > 7 else "",
                 "math_attendance": clean_text(values[8]) if len(values) > 8 else "",
@@ -228,11 +236,12 @@ def read_student_records(buffer):
     return records
 
 
-def build_student_matrix(records, clei_filter="", context_filter=""):
+def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter=""):
     filtered = [
         item for item in records
         if (not clei_filter or item["clei"] == clei_filter)
-        and (not context_filter or item["context"] == context_filter)
+        and (not cycle_filter or (cycle_for_date(item["date"]) and cycle_for_date(item["date"])["cycle"] == int(cycle_filter)))
+        and (not week_filter or (cycle_for_date(item["date"]) and cycle_for_date(item["date"])["week"] == int(week_filter)))
     ]
     date_map = {}
     students = {}
@@ -346,14 +355,18 @@ def grupos():
         buffer, metadata = download_excel_from_drive()
         records = read_student_records(buffer)
         clei_filter = request.args.get("clei", "").strip()
-        context_filter = request.args.get("contexto", "").strip()
-        cleis = sorted({item["clei"] for item in records if item["clei"]}, key=lambda value: str(value))
-        contexts = ["Alta", "Multigrado"]
+        cycle_filter = request.args.get("ciclo", "").strip()
+        week_filter = request.args.get("semana", "").strip()
+        cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
+        cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
+        weeks = [1, 2, 3]
         if clei_filter not in cleis:
             clei_filter = ""
-        if context_filter not in contexts:
-            context_filter = ""
-        matrix, dates = build_student_matrix(records, clei_filter, context_filter)
+        if cycle_filter not in {str(value) for value in cycles}:
+            cycle_filter = ""
+        if week_filter not in {str(value) for value in weeks}:
+            week_filter = ""
+        matrix, dates = build_student_matrix(records, clei_filter, cycle_filter, week_filter)
         return render_template(
             "grupos.html",
             current_user=session.get("user"),
@@ -361,8 +374,10 @@ def grupos():
             dates=dates,
             cleis=cleis,
             clei_filter=clei_filter,
-            contexts=contexts,
-            context_filter=context_filter,
+            cycles=cycles,
+            weeks=weeks,
+            cycle_filter=cycle_filter,
+            week_filter=week_filter,
             total_records=len(matrix),
             data_error=None,
             drive_updated=metadata.get("modifiedTime", ""),
@@ -376,8 +391,10 @@ def grupos():
             dates=[],
             cleis=[],
             clei_filter="",
-            contexts=["Alta", "Multigrado"],
-            context_filter="",
+            cycles=[],
+            weeks=[1, 2, 3],
+            cycle_filter="",
+            week_filter="",
             total_records=0,
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
@@ -386,4 +403,3 @@ def grupos():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
