@@ -9,343 +9,56 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">▰</div>
-        <div>
-          <strong>AulaCol</strong>
-          <span>Plataforma Docente</span>
-        </div>
-      </div>
-
-      <div class="profile">
-        <img
-          src="{{ url_for('static', filename='docente.jpg') }}"
-          alt="Imagen del docente"
-        >
-        <h2>Diego Hoyos</h2>
-        <p>
-          Docente de Matemáticas  
-
-          y Ciencias Naturales
-        </p>
-      </div>
-
+      <div class="brand"><div class="brand-mark">▰</div><div><strong>AulaCol</strong><span>Plataforma Docente</span></div></div>
+      <div class="profile"><img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente"><h2>Diego Hoyos</h2><p>Docente de Matemáticas<br>y Ciencias Naturales</p></div>
       <nav class="menu" aria-label="Navegación principal">
-        <a class="menu-item active" href="{{ url_for('home') }}">
-          <span class="menu-icon">⌂</span>
-          Inicio
-        </a>
-
-        <a class="menu-item" href="#clases">
-          <span class="menu-icon">▤</span>
-          Mis clases
-        </a>
-
-        <a class="menu-item" href="#alta">
-          <span class="menu-icon">⌂</span>
-          Alta
-        </a>
-
-        <a class="menu-item" href="#multigrado">
-          <span class="menu-icon">♧</span>
-          Multigrado
-        </a>
-
-        <a class="menu-item" href="#grupos">
-          <span class="menu-icon">♧</span>
-          Mis grupos
-        </a>
-
-        <a class="menu-item" href="#estudiantes">
-          <span class="menu-icon">♙</span>
-          Estudiantes
-        </a>
-
-        <a class="menu-item" href="#asistencia">
-          <span class="menu-icon">✓</span>
-          Asistencia
-        </a>
-
-        <a class="menu-item" href="#seguimiento">
-          <span class="menu-icon">⌁</span>
-          Seguimiento
-        </a>
-
-        <a class="menu-item" href="#materiales">
-          <span class="menu-icon">□</span>
-          Materiales
-        </a>
+        <a class="menu-item active" href="{{ url_for('home') }}"><span class="menu-icon">⌂</span>Inicio</a>
+        <a class="menu-item" href="#clases"><span class="menu-icon">▤</span>Mis clases</a>
+        <a class="menu-item" href="#alta"><span class="menu-icon">⌂</span>Alta</a>
+        <a class="menu-item" href="#multigrado"><span class="menu-icon">♧</span>Multigrado</a>
+        <a class="menu-item" href="#grupos"><span class="menu-icon">♧</span>Mis grupos</a>
+        <a class="menu-item" href="#estudiantes"><span class="menu-icon">♙</span>Estudiantes</a>
+        <a class="menu-item" href="#asistencia"><span class="menu-icon">✓</span>Asistencia</a>
+        <a class="menu-item" href="#seguimiento"><span class="menu-icon">⌁</span>Seguimiento</a>
+        <a class="menu-item" href="#materiales"><span class="menu-icon">□</span>Materiales</a>
       </nav>
-
-      <a class="logout" href="{{ url_for('logout') }}">
-        <span class="menu-icon">↪</span>
-        Cerrar sesión
-      </a>
+      <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a>
     </aside>
 
     <main class="main-content">
-      <header class="topbar">
-        <button
-          class="mobile-menu"
-          type="button"
-          aria-label="Abrir menú"
-        >
-          ☰
-        </button>
-
-        <div class="topbar-spacer"></div>
-
-        <span class="academic-year">
-          Año académico 2026⌄
-        </span>
-      </header>
-
+      <header class="topbar"><button class="mobile-menu" type="button" aria-label="Abrir menú">☰</button><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026⌄</span></header>
       <div class="page-content">
-        <section class="welcome-section">
-          <p class="eyebrow">PANEL DOCENTE</p>
+        <section class="welcome-section"><p class="eyebrow">PANEL DOCENTE</p><h1>Buenos días, Diego</h1><p class="subtitle">Resumen de tu actividad docente</p></section>
 
-          <h1>Buenos días, Diego</h1>
-
-          <p class="subtitle">
-            Resumen de tu actividad docente
-          </p>
-        </section>
+        {% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>La estructura del panel está lista, pero los datos aparecerán cuando Render pueda leer el archivo privado.</small></div>{% endif %}
 
         <section class="stats-grid" aria-label="Resumen">
-          <article class="stat-card">
-            <div class="stat-icon green">▤</div>
-
-            <div>
-              <strong>42</strong>
-              <span>
-                Clases registradas  
-
-                en el Excel
-              </span>
-            </div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-icon green">♧</div>
-
-            <div>
-              <strong>6</strong>
-              <span>
-                Grupos activos  
-
-                en tus registros
-              </span>
-            </div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-icon teal">♙</div>
-
-            <div>
-              <strong>897</strong>
-              <span>
-                Registros de estudiantes  
-
-                para seguimiento
-              </span>
-            </div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-icon gold">!</div>
-
-            <div>
-              <strong>—</strong>
-              <span>
-                Pendientes  
-
-                por revisar
-              </span>
-            </div>
-          </article>
+          <article class="stat-card"><div class="stat-icon green">▤</div><div><strong>{{ total_classes }}</strong><span>Clases registradas<br>desde el Excel</span></div></article>
+          <article class="stat-card"><div class="stat-icon green">♧</div><div><strong>{{ total_groups }}</strong><span>Grupos o contextos<br>en tus registros</span></div></article>
+          <article class="stat-card"><div class="stat-icon teal">♙</div><div><strong>{{ total_students }}</strong><span>Registros de estudiantes<br>pendientes de integrar</span></div></article>
+          <article class="stat-card"><div class="stat-icon gold">✓</div><div><strong>{{ 'Conectado' if not data_error else 'Revisar' }}</strong><span>Estado de la fuente<br>Google Drive</span></div></article>
         </section>
 
         <div class="dashboard-grid">
           <section class="panel classes-panel" id="clases">
-            <div class="panel-heading">
-              <h2>
-                <span class="heading-icon">▣</span>
-                Clases recientes
-              </h2>
-
-              <div class="filters" aria-label="Filtrar clases">
-                <button class="filter active" type="button">
-                  Todas
-                </button>
-
-                <button class="filter" type="button">
-                  Alta
-                </button>
-
-                <button class="filter" type="button">
-                  Multigrado
-                </button>
-              </div>
-            </div>
-
+            <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><button class="filter active" type="button">Todas</button><button class="filter" type="button">Alta</button><button class="filter" type="button">Multigrado</button></div></div>
             <div class="class-table">
-              <div class="table-row table-head">
-                <span>Fecha</span>
-                <span>Contexto</span>
-                <span>Grupo</span>
-                <span>Asignatura</span>
-                <span>Tema</span>
-              </div>
-
-              <div class="table-row">
-                <span>4 sep. 2026</span>
-                <span>
-                  <b class="tag alta">Alta</b>
-                </span>
-                <span>Técnico Laboral</span>
-                <span>Nómina y trabajo</span>
-                <span>Contratos y nóminas</span>
-              </div>
-
-              <div class="table-row">
-                <span>3 sep. 2026</span>
-                <span>
-                  <b class="tag multi">Multigrado</b>
-                </span>
-                <span>Multigrado</span>
-                <span>Ciencias Naturales</span>
-                <span>Temas de repaso</span>
-              </div>
-
-              <div class="table-row">
-                <span>1 sep. 2026</span>
-                <span>
-                  <b class="tag alta">Alta</b>
-                </span>
-                <span>Comunidad Terapéutica</span>
-                <span>Matemáticas</span>
-                <span>Números enteros y funciones</span>
-              </div>
-
-              <div class="table-row">
-                <span>28 ago. 2026</span>
-                <span>
-                  <b class="tag alta">Alta</b>
-                </span>
-                <span>Técnico Laboral</span>
-                <span>Administración</span>
-                <span>Contenidos introductorios</span>
-              </div>
-
-              <div class="table-row">
-                <span>26 ago. 2026</span>
-                <span>
-                  <b class="tag alta">Alta</b>
-                </span>
-                <span>CLEI 5-6</span>
-                <span>Matemáticas</span>
-                <span>Conjuntos numéricos</span>
-              </div>
+              <div class="table-row table-head"><span>Fecha</span><span>Contexto</span><span>Grupo</span><span>Asignatura</span><span>Tema</span></div>
+              {% for item in classes[:10] %}
+              <div class="table-row"><span>{{ item.date_label }}</span><span><b class="tag {{ item.context_class }}">{{ item.context }}</b></span><span>{{ item.group }}</span><span>{{ item.subject }}</span><span>{{ item.theme }}</span></div>
+              {% else %}
+              <div class="empty-state">No hay clases para mostrar todavía.</div>
+              {% endfor %}
             </div>
           </section>
 
           <aside class="right-column">
-            <section class="panel next-class">
-              <h2>
-                <span class="heading-icon">▣</span>
-                Próxima clase
-              </h2>
-
-              <div class="next-class-box">
-                <div class="date-box">
-                  <strong>—</strong>
-                  <span>Por definir</span>
-                </div>
-
-                <div>
-                  <b class="tag multi">Multigrado</b>
-
-                  <h3>Próxima jornada</h3>
-
-                  <p>
-                    Se definirá con el registro de clases.
-                  </p>
-                </div>
-              </div>
-
-              <button class="primary-button" type="button">
-                Ver detalles
-              </button>
-            </section>
-
-            <section class="panel follow-up" id="seguimiento">
-              <h2>
-                <span class="heading-icon gold-text">♧</span>
-                Seguimiento pendiente
-              </h2>
-
-              <div class="follow-row">
-                <span class="follow-icon">♧</span>
-
-                <div>
-                  <strong>Registros de asistencia</strong>
-                  <small>
-                    Se revisarán desde el Excel
-                  </small>
-                </div>
-
-                <b class="counter">—</b>
-              </div>
-
-              <div class="follow-row">
-                <span class="follow-icon">▤</span>
-
-                <div>
-                  <strong>Observaciones</strong>
-                  <small>
-                    Seguimiento pedagógico y convivencial
-                  </small>
-                </div>
-
-                <b class="counter">—</b>
-              </div>
-            </section>
+            <section class="panel next-class"><h2><span class="heading-icon">▣</span>Última clase registrada</h2>{% if classes %}{% set latest = classes[0] %}<div class="next-class-box"><div class="date-box"><strong>{{ latest.date.day }}</strong><span>{{ latest.date.strftime('%b')|upper }}</span></div><div><b class="tag {{ latest.context_class }}">{{ latest.context }}</b><h3>{{ latest.group }}</h3><p>{{ latest.subject }} · {{ latest.theme }}</p></div></div>{% if latest.drive_link %}<a class="primary-button button-link" href="{{ latest.drive_link }}" target="_blank" rel="noopener">Abrir material</a>{% else %}<div class="primary-button disabled-button">Sin enlace de material</div>{% endif %}{% else %}<div class="empty-state">Se mostrará cuando haya una clase válida en el Excel.</div>{% endif %}</section>
+            <section class="panel follow-up" id="seguimiento"><h2><span class="heading-icon gold-text">♧</span>Fuente de datos</h2><div class="follow-row"><span class="follow-icon">✓</span><div><strong>Excel privado de Google Drive</strong><small>{{ 'Lectura correcta del archivo' if not data_error else 'Revisa las variables de Render' }}</small></div></div><div class="follow-row"><span class="follow-icon">▤</span><div><strong>Actualización</strong><small>Se consulta al abrir el panel</small></div></div></section>
           </aside>
         </div>
 
-        <section class="contexts-grid" id="grupos">
-          <article class="context-card alta-card" id="alta">
-            <div class="context-icon">⌂</div>
-
-            <div>
-              <h2>Alta</h2>
-
-              <p>
-                CLEI 2, CLEI 3A, CLEI 3B, CLEI 4 y CLEI 5-6
-              </p>
-
-              <small>
-                Clases y grupos organizados por CLEI.
-              </small>
-            </div>
-          </article>
-
-          <article class="context-card multi-card" id="multigrado">
-            <div class="context-icon">♧</div>
-
-            <div>
-              <h2>Multigrado</h2>
-
-              <p>
-                Atención parcial por CLEI o maratón multigrado
-              </p>
-
-              <small>
-                Jornadas flexibles según los estudiantes atendidos.
-              </small>
-            </div>
-          </article>
-        </section>
+        <section class="contexts-grid" id="grupos"><article class="context-card alta-card" id="alta"><div class="context-icon">⌂</div><div><h2>Alta</h2><p>CLEI 2, CLEI 3A, CLEI 3B, CLEI 4 y CLEI 5-6</p><small>Clases y grupos organizados por CLEI.</small></div></article><article class="context-card multi-card" id="multigrado"><div class="context-icon">♧</div><div><h2>Multigrado</h2><p>Atención parcial por CLEI o maratón multigrado</p><small>Jornadas flexibles según los estudiantes atendidos.</small></div></article></section>
       </div>
     </main>
   </div>
