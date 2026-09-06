@@ -1,1 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis grupos | Panel Docente</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    .groups-toolbar { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:20px; }
+    .groups-toolbar label { display:block; margin-bottom:6px; color:var(--muted); font-size:12px; font-weight:700; }
+    .groups-toolbar select { min-width:280px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; }
+    .groups-toolbar .primary-button { width:auto; margin:0; padding:11px 18px; }
+    .group-summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+    .group-summary-card { padding:14px 18px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:var(--shadow); }
+    .group-summary-card strong { display:block; color:var(--ink); font-size:22px; }
+    .group-summary-card span { color:var(--muted); font-size:12px; }
+    .student-table { overflow:auto; }
+    .student-table table { width:100%; min-width:980px; border-collapse:collapse; }
+    .student-table th, .student-table td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:12px; }
+    .student-table th { color:var(--ink); background:#f8fafb; font-size:11px; }
+    .student-table td strong { display:block; }
+    .student-table td small { display:block; margin-top:4px; color:var(--muted); line-height:1.35; }
+    .grade { font-weight:800; color:var(--green-dark); }
+    .notice { margin-bottom:18px; padding:13px 16px; border-radius:8px; color:#7a5a13; background:#fff8e4; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">▰</div><div><strong>AulaCol</strong><span>Plataforma Docente</span></div></div>
+      <div class="profile"><img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente"><h2>Diego Hoyos</h2><p>Docente de Matemáticas<br>y Ciencias Naturales</p></div>
+      <nav class="menu" aria-label="Navegación principal">
+        <a class="menu-item" href="{{ url_for('home') }}">⌂ <span>Inicio</span></a>
+        <a class="menu-item active" href="{{ url_for('grupos') }}">♧ <span>Mis grupos</span></a>
+        <a class="menu-item" href="{{ url_for('home') }}#clases">▤ <span>Mis clases</span></a>
+      </nav>
+      <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a>
+    </aside>
+    <main class="main-content">
+      <header class="topbar"><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026⌄</span></header>
+      <div class="page-content">
+        <section class="welcome-section"><p class="eyebrow">ESTUDIANTES</p><h1>Mis grupos</h1><p class="subtitle">Consulta protegida de los registros cargados desde tu Excel.</p></section>
+        {% if data_error %}<div class="notice">{{ data_error }}</div>{% endif %}
+        <div class="groups-toolbar"><form method="get" action="{{ url_for('grupos') }}"><label for="grupo">Selecciona un grupo</label><select id="grupo" name="grupo"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select><button class="primary-button" type="submit">Ver grupo</button></form></div>
+        <div class="group-summary"><div class="group-summary-card"><strong>{{ total_records }}</strong><span>Registros mostrados</span></div>{% if group_filter %}<div class="group-summary-card"><strong>{{ group_filter }}</strong><span>Grupo seleccionado</span></div>{% endif %}</div>
+        <section class="panel student-table"><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>CLEI / grupo</th><th>Ciencias Naturales</th><th>Matemáticas / Física</th><th>Observación</th></tr></thead><tbody>{% for item in records[:250] %}<tr><td>{{ item.date_label or 'Sin fecha' }}</td><td><strong>{{ item.name or 'Sin nombre' }}</strong><small>Documento protegido</small></td><td>{{ item.clei or '—' }}<small>{{ item.group }}</small></td><td>{{ item.science_attendance or '—' }}{% if item.science_grade %}<small class="grade">Nota: {{ item.science_grade }}</small>{% endif %}</td><td>{{ item.math_attendance or '—' }}{% if item.math_grade %}<small class="grade">Nota: {{ item.math_grade }}</small>{% endif %}</td><td>{{ item.observation or 'Sin observaciones registradas' }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No hay registros para mostrar.</td></tr>{% endfor %}</tbody></table></section>
+        {% if total_records > 250 %}<p class="subtitle">Se muestran los primeros 250 registros. El total del grupo es {{ total_records }}.</p>{% endif %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>
 
