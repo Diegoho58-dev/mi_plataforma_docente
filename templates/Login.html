@@ -1,27 +1,227 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Login Docente</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Iniciar sesión | Panel Docente</title>
+
+    <style>
+        :root {
+            --azul: #2c3e50;
+            --verde: #1abc9c;
+            --fondo: #f4f6f9;
+            --texto: #263238;
+            --error: #b42318;
+            --error-fondo: #fef3f2;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: var(--texto);
+            background:
+                radial-gradient(circle at top left, #d8f3ee 0, transparent 34%),
+                var(--fondo);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            overflow: hidden;
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(44, 62, 80, 0.16);
+        }
+
+        .login-header {
+            padding: 32px 28px 26px;
+            text-align: center;
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--azul), #174d67);
+        }
+
+        .login-header img {
+            width: 96px;
+            height: 96px;
+            object-fit: cover;
+            border: 4px solid #ffffff;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+        }
+
+        .login-header h1 {
+            margin: 18px 0 6px;
+            font-size: 1.6rem;
+        }
+
+        .login-header p {
+            margin: 0;
+            color: #dceff0;
+            font-size: 0.95rem;
+        }
+
+        .login-form {
+            padding: 30px 28px 28px;
+        }
+
+        .login-form h2 {
+            margin: 0 0 22px;
+            color: var(--azul);
+            font-size: 1.25rem;
+            text-align: center;
+        }
+
+        .field {
+            margin-bottom: 18px;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: 600;
+            font-size: 0.92rem;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 13px 14px;
+            border: 1px solid #cbd5da;
+            border-radius: 9px;
+            outline: none;
+            font: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .field input:focus {
+            border-color: var(--verde);
+            box-shadow: 0 0 0 3px rgba(26, 188, 156, 0.16);
+        }
+
+        .error-message {
+            margin-bottom: 18px;
+            padding: 11px 12px;
+            border: 1px solid #fecdca;
+            border-radius: 8px;
+            color: var(--error);
+            background: var(--error-fondo);
+            font-size: 0.9rem;
+        }
+
+        .submit-button {
+            width: 100%;
+            padding: 13px 16px;
+            border: 0;
+            border-radius: 9px;
+            color: #ffffff;
+            background: var(--verde);
+            cursor: pointer;
+            font: inherit;
+            font-weight: 700;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .submit-button:hover {
+            background: #159a80;
+        }
+
+        .submit-button:active {
+            transform: scale(0.98);
+        }
+
+        .login-footer {
+            padding: 0 28px 26px;
+            color: #64747c;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 16px;
+            }
+
+            .login-header,
+            .login-form {
+                padding-left: 22px;
+                padding-right: 22px;
+            }
+
+            .login-footer {
+                padding-left: 22px;
+                padding-right: 22px;
+            }
+        }
+    </style>
 </head>
+
 <body>
-  <main class="content">
-    <h1>Acceso al Panel Docente</h1>
-    {% if error %}
-      <p style="color:red;">{{ error }}</p>
-    {% endif %}
-    <form method="POST">
-      <label>Usuario:</label>
-      <input type="text" name="usuario" required>
-      <br><br>
-      <label>Contraseña:</label>
-      <input type="password" name="contrasena" required>
-      <br><br>
-      <button type="submit">Ingresar</button>
-    </form>
-  </main>
+    <main class="login-container">
+        <section class="login-card">
+            <header class="login-header">
+                <img
+                    src="{{ url_for('static', filename='docente.jpg') }}"
+                    alt="Imagen del docente"
+                >
+
+                <h1>Panel Docente</h1>
+                <p>Diego Hoyos · Matemáticas y Ciencias Naturales</p>
+            </header>
+
+            <form class="login-form" method="POST" action="{{ url_for('login') }}">
+                <h2>Iniciar sesión</h2>
+
+                {% if error %}
+                    <div class="error-message" role="alert">
+                        {{ error }}
+                    </div>
+                {% endif %}
+
+                <div class="field">
+                    <label for="username">Usuario</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        autocomplete="username"
+                        required
+                        autofocus
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="password">Contraseña</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
+                <button class="submit-button" type="submit">
+                    Entrar al panel
+                </button>
+            </form>
+
+            <footer class="login-footer">
+                Acceso privado para el docente
+            </footer>
+        </section>
+    </main>
 </body>
 </html>
-
-
