@@ -41,7 +41,7 @@
 
         <div class="dashboard-grid">
           <section class="panel classes-panel" id="clases">
-            <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><button class="filter active" type="button">Todas</button><button class="filter" type="button">Alta</button><button class="filter" type="button">Multigrado</button></div></div>
+            <div class="panel-heading"><h2><span class="heading-icon">▣</span>Clases recientes</h2><div class="filters" aria-label="Filtrar clases"><button class="filter active" type="button">Todas</button><button class="filter" type="button">Alta</button><button class="filter" type="button">Multigrado</button><button class="filter" type="button">Técnico Laboral</button><button class="filter" type="button">Comunidad Terapéutica</button></div></div>
             <div class="class-table">
               <div class="table-row table-head"><span>Fecha</span><span>Contexto</span><span>Grupo</span><span>Asignatura</span><span>Tema</span></div>
               {% for item in classes[:10] %}
@@ -58,7 +58,7 @@
           </aside>
         </div>
 
-        <section class="contexts-grid" id="grupos"><article class="context-card alta-card" id="alta"><div class="context-icon">⌂</div><div><h2>Alta</h2><p>CLEI 2, CLEI 3A, CLEI 3B, CLEI 4 y CLEI 5-6</p><small>Clases y grupos organizados por CLEI.</small></div></article><article class="context-card multi-card" id="multigrado"><div class="context-icon">♧</div><div><h2>Multigrado</h2><p>Atención parcial por CLEI o maratón multigrado</p><small>Jornadas flexibles según los estudiantes atendidos.</small></div></article></section>
+        <section class="contexts-grid" id="grupos"><article class="context-card alta-card" id="alta"><div class="context-icon">⌂</div><div><h2>Alta</h2><p>CLEI 2, CLEI 3A, CLEI 3B, CLEI 4 y CLEI 5-6</p><small>Clases y grupos organizados por CLEI.</small></div></article><article class="context-card multi-card" id="multigrado"><div class="context-icon">♧</div><div><h2>Multigrado</h2><p>Atención parcial por CLEI o maratón multigrado</p><small>Jornadas flexibles según los estudiantes atendidos.</small></div></article><article class="context-card tecnico-card" id="tecnico"><div class="context-icon">▤</div><div><h2>Técnico Laboral</h2><p>Clases y acompañamientos del proceso técnico</p><small>Proceso independiente de Alta y Multigrado.</small></div></article><article class="context-card terapeutica-card" id="terapeutica"><div class="context-icon">✦</div><div><h2>Comunidad Terapéutica</h2><p>Clases y acompañamientos de la comunidad</p><small>Proceso independiente de Alta y Multigrado.</small></div></article></section>
       </div>
     </main>
   </div>
