@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 from datetime import date, datetime
 from functools import wraps
 
@@ -25,6 +26,7 @@ app.config["SECRET_KEY"] = SECRET_KEY
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multigrado"}
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
+CYCLE_START = date(2026, 7, 6)
 
 
 def login_required(view_function):
@@ -46,13 +48,48 @@ def format_date(value):
     if isinstance(value, datetime):
         value = value.date()
     if isinstance(value, date):
-        months = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-        return f"{value.day} {months[value.month - 1]} {value.year}"
+        days = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+        months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+        return f"{days[value.weekday()]} {value.day} de {months[value.month - 1]} de {value.year}"
     return clean_text(value)
 
 
 def parse_date(value):
-    return value if isinstance(value, (datetime, date)) else None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = clean_text(value).lower()
+    match = re.search(r"(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})", text)
+    if not match:
+        return None
+    months = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12}
+    month = months.get(match.group(2))
+    if not month:
+        return None
+    try:
+        return date(int(match.group(3)), month, int(match.group(1)))
+    except ValueError:
+        return None
+
+
+def cycle_for_date(value):
+    class_date = parse_date(value)
+    if not class_date or class_date < CYCLE_START:
+        return None
+    week_number = ((class_date - CYCLE_START).days // 7) + 1
+    return {"cycle": ((week_number - 1) // 3) + 1, "week": ((week_number - 1) % 3) + 1}
+
+
+def current_cycle():
+    info = cycle_for_date(date.today())
+    return info or {"cycle": 1, "week": 1}
+
+
+def is_no_class(theme, observations):
+    text = f"{theme} {observations}".lower()
+    markers = ("no hubo clase", "no hay clase", "sin clase", "no se realizó", "no se realizo", "no se dictó", "no se dicto", "suspendida")
+    return any(marker in text for marker in markers)
 
 
 def classify_context(sheet_name, group):
@@ -121,12 +158,15 @@ def read_planning_rows(buffer):
                 observations = clean_text(values[4]) if len(values) > 4 else ""
                 week = clean_text(values[5]) if len(values) > 5 else ""
                 drive_link = clean_text(values[7]) if len(values) > 7 else ""
-            if not parse_date(class_date):
+            normalized_date = parse_date(class_date)
+            if not normalized_date:
                 continue
             context = classify_context(sheet_name, group)
+            no_class = is_no_class(theme, observations)
+            cycle = cycle_for_date(normalized_date)
             classes.append({
-                "date": parse_date(class_date),
-                "date_label": format_date(class_date),
+                "date": normalized_date,
+                "date_label": format_date(normalized_date),
                 "context": context,
                 "context_class": {
                     "Multigrado": "multi",
@@ -139,6 +179,10 @@ def read_planning_rows(buffer):
                 "theme": theme or "Sin tema registrado",
                 "observations": observations,
                 "week": week,
+                "cycle": cycle["cycle"] if cycle else None,
+                "cycle_week": cycle["week"] if cycle else None,
+                "no_class": no_class,
+                "novelty": observations if no_class and observations else (theme if no_class else ""),
                 "drive_link": drive_link,
                 "source": sheet_name,
             })
@@ -183,6 +227,7 @@ def get_dashboard_data():
         student_records = read_student_records(buffer)
         return {
             "classes": classes,
+            "current_cycle": current_cycle(),
             "total_classes": len(classes),
             "total_students": len(student_records),
             "total_groups": len({item["group"] for item in classes}),
@@ -193,6 +238,7 @@ def get_dashboard_data():
         app.logger.exception("No se pudo leer el Excel privado de Google Drive")
         return {
             "classes": [],
+            "current_cycle": current_cycle(),
             "total_classes": 0,
             "total_students": "—",
             "total_groups": 0,
