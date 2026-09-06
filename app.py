@@ -228,6 +228,53 @@ def read_student_records(buffer):
     return records
 
 
+def build_student_matrix(records, clei_filter="", context_filter=""):
+    filtered = [
+        item for item in records
+        if (not clei_filter or item["clei"] == clei_filter)
+        and (not context_filter or item["context"] == context_filter)
+    ]
+    date_map = {}
+    students = {}
+    for item in filtered:
+        if not item["date"]:
+            continue
+        date_key = item["date"].isoformat()
+        date_map[date_key] = item["date_label"]
+        student_key = (item["name"], item["identification"], item["group"])
+        student = students.setdefault(student_key, {
+            "name": item["name"],
+            "group": item["group"],
+            "clei": item["clei"],
+            "dates": {},
+            "math_grades": [],
+            "science_grades": [],
+        })
+        cell = student["dates"].setdefault(date_key, {
+            "science_attendance": "",
+            "science_grade": "",
+            "math_attendance": "",
+            "math_grade": "",
+        })
+        cell["science_attendance"] = item["science_attendance"] or cell["science_attendance"]
+        cell["science_grade"] = item["science_grade"] or cell["science_grade"]
+        cell["math_attendance"] = item["math_attendance"] or cell["math_attendance"]
+        cell["math_grade"] = item["math_grade"] or cell["math_grade"]
+        for field, target in (("science_grade", "science_grades"), ("math_grade", "math_grades")):
+            try:
+                student[target].append(float(item[field].replace(",", ".")))
+            except (AttributeError, TypeError, ValueError):
+                pass
+
+    dates = sorted(date_map.items(), reverse=True)
+    matrix = []
+    for student in sorted(students.values(), key=lambda value: value["name"].lower()):
+        student["math_average"] = round(sum(student["math_grades"]) / len(student["math_grades"]), 2) if student["math_grades"] else None
+        student["science_average"] = round(sum(student["science_grades"]) / len(student["science_grades"]), 2) if student["science_grades"] else None
+        matrix.append(student)
+    return matrix, dates
+
+
 def get_dashboard_data(context_filter=""):
     try:
         buffer, metadata = download_excel_from_drive()
@@ -298,18 +345,25 @@ def grupos():
     try:
         buffer, metadata = download_excel_from_drive()
         records = read_student_records(buffer)
-        group_filter = request.args.get("grupo", "").strip()
-        groups = sorted({item["group"] for item in records if item["group"]})
-        if group_filter not in groups:
-            group_filter = ""
-        visible_records = [item for item in records if not group_filter or item["group"] == group_filter]
+        clei_filter = request.args.get("clei", "").strip()
+        context_filter = request.args.get("contexto", "").strip()
+        cleis = sorted({item["clei"] for item in records if item["clei"]}, key=lambda value: str(value))
+        contexts = ["Alta", "Multigrado"]
+        if clei_filter not in cleis:
+            clei_filter = ""
+        if context_filter not in contexts:
+            context_filter = ""
+        matrix, dates = build_student_matrix(records, clei_filter, context_filter)
         return render_template(
             "grupos.html",
             current_user=session.get("user"),
-            records=visible_records,
-            groups=groups,
-            group_filter=group_filter,
-            total_records=len(visible_records),
+            matrix=matrix,
+            dates=dates,
+            cleis=cleis,
+            clei_filter=clei_filter,
+            contexts=contexts,
+            context_filter=context_filter,
+            total_records=len(matrix),
             data_error=None,
             drive_updated=metadata.get("modifiedTime", ""),
         )
@@ -318,9 +372,12 @@ def grupos():
         return render_template(
             "grupos.html",
             current_user=session.get("user"),
-            records=[],
-            groups=[],
-            group_filter="",
+            matrix=[],
+            dates=[],
+            cleis=[],
+            clei_filter="",
+            contexts=["Alta", "Multigrado"],
+            context_filter="",
             total_records=0,
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
@@ -329,3 +386,4 @@ def grupos():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
