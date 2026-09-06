@@ -248,3 +248,5 @@ a { color: inherit; }
 @media (max-width: 760px) {
   .cycle-banner { align-items: flex-start; flex-direction: column; gap: 12px; }
 }
+
+.filter { text-decoration: none; cursor: pointer; }
