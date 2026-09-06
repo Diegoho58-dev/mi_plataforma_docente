@@ -220,17 +220,25 @@ def read_student_records(buffer):
     return records
 
 
-def get_dashboard_data():
+def get_dashboard_data(context_filter=""):
     try:
         buffer, metadata = download_excel_from_drive()
-        classes = read_planning_rows(buffer)
+        all_classes = read_planning_rows(buffer)
         student_records = read_student_records(buffer)
+        valid_filters = {"Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"}
+        if context_filter not in valid_filters:
+            context_filter = ""
+        classes = [
+            item for item in all_classes
+            if not context_filter or item["context"] == context_filter
+        ]
         return {
             "classes": classes,
+            "context_filter": context_filter,
             "current_cycle": current_cycle(),
-            "total_classes": len(classes),
+            "total_classes": len(all_classes),
             "total_students": len(student_records),
-            "total_groups": len({item["group"] for item in classes}),
+            "total_groups": len({item["group"] for item in all_classes}),
             "drive_updated": metadata.get("modifiedTime", ""),
             "data_error": None,
         }
@@ -238,6 +246,7 @@ def get_dashboard_data():
         app.logger.exception("No se pudo leer el Excel privado de Google Drive")
         return {
             "classes": [],
+            "context_filter": context_filter,
             "current_cycle": current_cycle(),
             "total_classes": 0,
             "total_students": "—",
@@ -270,7 +279,8 @@ def logout():
 @app.route("/")
 @login_required
 def home():
-    data = get_dashboard_data()
+    context_filter = request.args.get("context", "").strip()
+    data = get_dashboard_data(context_filter)
     return render_template("index.html", current_user=session.get("user"), **data)
 
 
