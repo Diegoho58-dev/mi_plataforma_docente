@@ -223,3 +223,17 @@ a { color: inherit; }
 @media (max-width: 760px) {
   .sidebar { height: auto; max-height: none; overflow: visible; }
 }
+
+.especial-card .context-icon { color: #8a5a16; background: #f9e8c2; }
+.especial-card h2 { color: #8a5a16; }
+@media (max-width: 1080px) {
+  .contexts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .contexts-grid { grid-template-columns: 1fr; }
+}
+
+.tecnico-card .context-icon { color: #245b8a; background: #e1eefb; }
+.tecnico-card h2 { color: #245b8a; }
+.terapeutica-card .context-icon { color: #80539c; background: #f0e5f7; }
+.terapeutica-card h2 { color: #80539c; }
