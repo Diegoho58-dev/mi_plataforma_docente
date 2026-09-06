@@ -203,3 +203,23 @@ a { color: inherit; }
   .academic-year { font-size: 11px; }
 }
 
+/* Ajustes de navegación y fuente de datos */
+.sidebar {
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+.sidebar::-webkit-scrollbar { width: 7px; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.35); border-radius: 10px; }
+.menu { flex: 0 0 auto; }
+.logout { flex: 0 0 auto; }
+.data-alert { margin: 0 0 22px; padding: 13px 16px; border: 1px solid #f1d28a; border-radius: 9px; color: #7a5a13; background: #fff8e4; line-height: 1.45; }
+.data-alert small { display: block; margin-top: 4px; color: #987a36; }
+.empty-state { padding: 28px 20px; color: var(--muted); text-align: center; }
+.button-link { display: block; width: auto; margin: 0 20px 18px; text-align: center; text-decoration: none; }
+.disabled-button { color: #81909a; background: #eef1f3; cursor: default; text-align: center; }
+
+@media (max-width: 760px) {
+  .sidebar { height: auto; max-height: none; overflow: visible; }
+}
