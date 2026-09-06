@@ -237,3 +237,14 @@ a { color: inherit; }
 .tecnico-card h2 { color: #245b8a; }
 .terapeutica-card .context-icon { color: #80539c; background: #f0e5f7; }
 .terapeutica-card h2 { color: #80539c; }
+
+.cycle-banner { display: flex; align-items: center; gap: 28px; margin-top: 18px; padding: 14px 18px; border: 1px solid #c9e8df; border-radius: 10px; background: linear-gradient(90deg, #effaf6, #ffffff); }
+.cycle-banner > div { display: flex; flex-direction: column; gap: 4px; }
+.cycle-label { color: var(--green-dark); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.cycle-banner strong { color: var(--ink); font-size: 18px; }
+.cycle-note { color: var(--muted); font-size: 12px; }
+.cycle-row, .row-note { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.no-class-label { color: #b47712; }
+@media (max-width: 760px) {
+  .cycle-banner { align-items: flex-start; flex-direction: column; gap: 12px; }
+}
