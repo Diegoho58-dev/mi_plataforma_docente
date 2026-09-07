@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import polars as pl
 from datetime import date, datetime
 from functools import wraps
 from flask import Flask, redirect, render_template, request, session, url_for
@@ -399,6 +400,66 @@ def grupos():
             drive_updated="",
         )
 
+@app.route("/estudiantes")
+@login_required
+def estudiantes():
+    try:
+        buffer, metadata = download_excel_from_drive()
+        buffer.seek(0)
+
+        # Leer todas las hojas con Polars
+        sheets = pl.read_excel(buffer, sheet_id=None)
+
+        records = []
+        for name, df in sheets.items():
+            if name.lower() in STUDENT_SHEETS:
+                df = df.drop_nulls()
+                df = df.with_columns(pl.lit(name).alias("CLEI"))
+                records.append(df)
+
+        if not records:
+            return render_template(
+                "estudiantes.html",
+                current_user=session.get("user"),
+                data_error="No se encontraron registros de estudiantes.",
+                summary=[],
+                drive_updated=""
+            )
+
+        df_all = pl.concat(records)
+
+        # Convertir columnas de notas a numéricas
+        df_all = df_all.with_columns([
+            pl.col(df_all.columns[9]).cast(pl.Float64).alias("math_grade"),
+            pl.col(df_all.columns[7]).cast(pl.Float64).alias("science_grade")
+        ])
+
+        # Promedios por CLEI
+        summary = (
+            df_all.groupby("CLEI")
+            .agg([
+                pl.col("math_grade").mean().alias("math_grade"),
+                pl.col("science_grade").mean().alias("science_grade")
+            ])
+            .to_dicts()
+        )
+
+        return render_template(
+            "estudiantes.html",
+            current_user=session.get("user"),
+            summary=summary,
+            drive_updated=metadata.get("modifiedTime", ""),
+            data_error=None
+        )
+    except Exception:
+        app.logger.exception("Error en análisis de estudiantes")
+        return render_template(
+            "estudiantes.html",
+            current_user=session.get("user"),
+            summary=[],
+            drive_updated="",
+            data_error="No se pudo leer el Excel desde Google Drive."
+        )
 
 
 if __name__ == "__main__":
