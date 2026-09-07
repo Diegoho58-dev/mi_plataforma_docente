@@ -431,7 +431,7 @@ def estudiantes():
                 drive_updated=""
             )
 
-        # --- Unificar columnas y tipos ---
+        # Unificar columnas
         all_columns = set()
         for df in records:
             all_columns.update(df.columns)
@@ -441,23 +441,29 @@ def estudiantes():
             for col in all_columns:
                 if col not in df.columns:
                     df = df.with_columns(pl.lit(None).alias(col))
-            # Convertir todas las columnas a texto para evitar conflictos
             df = df.select([pl.col(c).cast(pl.Utf8).alias(c) for c in sorted(all_columns)])
             aligned.append(df)
 
         df_all = pl.concat(aligned)
 
-        # --- Resumen simple: contar registros por CLEI ---
+        # Resumen simple: contar registros por CLEI
         summary = (
             df_all.groupby("CLEI")
             .agg([pl.count().alias("total_registros")])
+            .fill_null("")  # evitar valores Null
             .to_dicts()
         )
+
+        # Convertir valores a tipos serializables
+        clean_summary = []
+        for row in summary:
+            clean_row = {k: (v if v is not None else "") for k, v in row.items()}
+            clean_summary.append(clean_row)
 
         return render_template(
             "estudiantes.html",
             current_user=session.get("user"),
-            summary=summary,
+            summary=clean_summary,
             drive_updated=metadata.get("modifiedTime", ""),
             data_error=None
         )
@@ -470,7 +476,6 @@ def estudiantes():
             drive_updated="",
             data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
