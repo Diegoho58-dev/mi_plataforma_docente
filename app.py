@@ -399,6 +399,7 @@ def grupos():
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
         )
+
 @app.route("/estudiantes")
 @login_required
 def estudiantes():
@@ -406,41 +407,25 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        student_sheets = ["CLEI 3A", "CLEI 3B", "CLEI 4", "CLEI 5-6", "Multigrado"]
+        # Leer una hoja (ajusta el nombre según tu Excel)
+        df = pl.read_excel(buffer, sheet_name="Planeación")
 
-        records = []
-        for sheet in student_sheets:
-            try:
-                df = pl.read_excel(buffer, sheet_name=sheet)
-                df = df.drop_nulls()
-                df = df.with_columns(pl.lit(sheet).alias("CLEI"))
-                records.append(df)
-                buffer.seek(0)
-            except Exception:
-                continue
+        # Limpiar nulos
+        df = df.drop_nulls()
 
-        if not records:
-            return render_template(
-                "estudiantes.html",
-                current_user=session.get("user"),
-                data_error="No se encontraron registros de estudiantes.",
-                summary=[],
-                drive_updated=""
-            )
+        # Renombrar columnas relevantes
+        df = df.rename({
+            "Grupo": "grupo",
+            "Asignatura": "asignatura",
+            "Fecha": "fecha",
+            "Tema - planeación ": "tema"
+        })
 
-        df_all = pl.concat(records)
-
-        # Usa nombres de columnas en lugar de índices
-        df_all = df_all.with_columns([
-            pl.col("Nota Matemáticas").cast(pl.Float64).alias("math_grade"),
-            pl.col("Nota Ciencias Naturales").cast(pl.Float64).alias("science_grade")
-        ])
-
+        # Agrupar por grupo y contar registros
         summary = (
-            df_all.groupby("CLEI")
+            df.groupby("grupo")
             .agg([
-                pl.col("math_grade").mean().alias("math_grade"),
-                pl.col("science_grade").mean().alias("science_grade")
+                pl.count().alias("total_registros")
             ])
             .to_dicts()
         )
