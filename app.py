@@ -2,10 +2,9 @@ import io
 import json
 import os
 import re
-import polars as pl
-import openpyxl
 from datetime import date, datetime
 from functools import wraps
+
 from flask import Flask, redirect, render_template, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -28,6 +27,7 @@ DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multigrado"}
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
 CYCLE_START = date(2026, 7, 6)
+DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
 
 
 def login_required(view_function):
@@ -286,6 +286,17 @@ def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter="
 
 
 def get_dashboard_data(context_filter=""):
+    if not DRIVE_ENABLED:
+        return {
+            "classes": [],
+            "context_filter": context_filter,
+            "current_cycle": current_cycle(),
+            "total_classes": 0,
+            "total_students": "—",
+            "total_groups": 0,
+            "drive_updated": "",
+            "data_error": "La conexión con Google Drive está pausada. La activaremos nuevamente con el archivo nuevo.",
+        }
     try:
         buffer, metadata = download_excel_from_drive()
         all_classes = read_planning_rows(buffer)
@@ -352,6 +363,22 @@ def home():
 @app.route("/grupos")
 @login_required
 def grupos():
+    if not DRIVE_ENABLED:
+        return render_template(
+            "grupos.html",
+            current_user=session.get("user"),
+            matrix=[],
+            dates=[],
+            cleis=["2", "3A", "3B", "4", "5-6", "Multigrado"],
+            clei_filter="",
+            cycles=[],
+            weeks=[1, 2, 3],
+            cycle_filter="",
+            week_filter="",
+            total_records=0,
+            data_error="La conexión con Google Drive está pausada. La activaremos nuevamente con el archivo nuevo.",
+            drive_updated="",
+        )
     try:
         buffer, metadata = download_excel_from_drive()
         records = read_student_records(buffer)
@@ -400,87 +427,6 @@ def grupos():
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
         )
-@app.route("/estudiantes")
-@login_required
-def estudiantes():
-    try:
-        buffer, metadata = download_excel_from_drive()
-        buffer.seek(0)
-
-        import openpyxl
-        wb = openpyxl.load_workbook(buffer, read_only=True)
-        sheetnames = wb.sheetnames
-
-        if not sheetnames:
-            return render_template(
-                "estudiantes.html",
-                current_user=session.get("user"),
-                estudiantes=[],
-                top_mate=[],
-                top_cien=[],
-                drive_updated="",
-                data_error="El archivo no contiene hojas."
-            )
-
-        # Usar la primera hoja disponible
-        first_sheet = sheetnames[0]
-        buffer.seek(0)
-        df = pl.read_excel(buffer, sheet_name=first_sheet)
-
-        # Renombrar columnas según tu archivo
-        df = df.rename({
-            "Estudiante": "estudiante",
-            "Faltas Matemáticas": "faltas_mate",
-            "Asistencias Matemáticas": "asis_mate",
-            "Faltas Ciencias": "faltas_cien",
-            "Asistencias Ciencias": "asis_cien"
-        })
-
-        # Ordenar estudiantes alfabéticamente
-        df = df.sort("estudiante")
-
-        # Convertir a dicts para la tabla
-        estudiantes = df.select([
-            "estudiante", "faltas_mate", "asis_mate", "faltas_cien", "asis_cien"
-        ]).to_dicts()
-
-        # Top 10 por faltas en Matemáticas
-        top_mate = (
-            df.select(["estudiante", "faltas_mate"])
-            .sort("faltas_mate", descending=True)
-            .head(10)
-            .to_dicts()
-        )
-
-        # Top 10 por faltas en Ciencias
-        top_cien = (
-            df.select(["estudiante", "faltas_cien"])
-            .sort("faltas_cien", descending=True)
-            .head(10)
-            .to_dicts()
-        )
-
-        return render_template(
-            "estudiantes.html",
-            current_user=session.get("user"),
-            estudiantes=estudiantes,
-            top_mate=top_mate,
-            top_cien=top_cien,
-            drive_updated=metadata.get("modifiedTime", ""),
-            data_error=None
-        )
-    except Exception as e:
-        app.logger.exception("Error en análisis de estudiantes")
-        return render_template(
-            "estudiantes.html",
-            current_user=session.get("user"),
-            estudiantes=[],
-            top_mate=[],
-            top_cien=[],
-            drive_updated="",
-            data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
-        )
-
 
 
 if __name__ == "__main__":
