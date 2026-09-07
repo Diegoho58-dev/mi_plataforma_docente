@@ -1,1 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estudiantes | Panel Docente</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">▰</div>
+        <div><strong>AulaCol</strong><span>Plataforma Docente</span></div>
+      </div>
+      <div class="profile">
+        <img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente">
+        <h2>Diego Hoyos</h2>
+        <p>Docente de Matemáticas<br>y Ciencias Naturales</p>
+      </div>
+      <nav class="menu">
+        <a class="menu-item" href="{{ url_for('home') }}">⌂ Inicio</a>
+        <a class="menu-item" href="{{ url_for('grupos') }}">♧ Mis grupos</a>
+        <a class="menu-item active" href="{{ url_for('estudiantes') }}">♙ Estudiantes</a>
+      </nav>
+      <a class="logout" href="{{ url_for('logout') }}">↪ Cerrar sesión</a>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-spacer"></div>
+        <span class="academic-year">Año académico 2026⌄</span>
+      </header>
+      <div class="page-content">
+        <section class="welcome-section">
+          <p class="eyebrow">ANÁLISIS</p>
+          <h1>Estudiantes por CLEI</h1>
+          <p class="subtitle">Promedios de Matemáticas y Ciencias Naturales</p>
+        </section>
+
+        {% if data_error %}
+          <div class="data-alert">{{ data_error }}</div>
+        {% else %}
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>CLEI</th>
+                <th>Promedio Matemáticas</th>
+                <th>Promedio Ciencias Naturales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in summary %}
+                <tr>
+                  <td>{{ row["CLEI"] }}</td>
+                  <td>{{ "%.2f"|format(row["math_grade"]) if row["math_grade"] else "—" }}</td>
+                  <td>{{ "%.2f"|format(row["science_grade"]) if row["science_grade"] else "—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <div id="chart"></div>
+          <script>
+            const data = [{
+              x: {{ summary|map(attribute='CLEI')|list|tojson }},
+              y: {{ summary|map(attribute='math_grade')|list|tojson }},
+              type: 'bar',
+              name: 'Matemáticas',
+              marker: {color: '#078f91'}
+            },{
+              x: {{ summary|map(attribute='CLEI')|list|tojson }},
+              y: {{ summary|map(attribute='science_grade')|list|tojson }},
+              type: 'bar',
+              name: 'Ciencias Naturales',
+              marker: {color: '#52aa82'}
+            }];
+            const layout = {barmode: 'group', title: 'Promedios por CLEI'};
+            Plotly.newPlot('chart', data, layout);
+          </script>
+        {% endif %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>
 
