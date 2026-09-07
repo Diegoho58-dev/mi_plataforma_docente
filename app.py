@@ -405,7 +405,7 @@ def grupos():
 def estudiantes():
     try:
         buffer, metadata = download_excel_from_drive()
-        buffer.seek(0)
+        buffer.seek(0)  # reiniciar puntero
 
         # Leer todas las hojas con Polars
         sheets = pl.read_excel(buffer, sheet_id=None)
@@ -451,16 +451,15 @@ def estudiantes():
             drive_updated=metadata.get("modifiedTime", ""),
             data_error=None
         )
-    except Exception:
+    except Exception as e:
         app.logger.exception("Error en análisis de estudiantes")
         return render_template(
             "estudiantes.html",
             current_user=session.get("user"),
             summary=[],
             drive_updated="",
-            data_error="No se pudo leer el Excel desde Google Drive."
+            data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
