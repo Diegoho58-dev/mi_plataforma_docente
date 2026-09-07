@@ -400,7 +400,6 @@ def grupos():
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
         )
-
 @app.route("/estudiantes")
 @login_required
 def estudiantes():
@@ -408,7 +407,7 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        # Ver nombres de hojas disponibles
+        # Detectar nombres de hojas disponibles con openpyxl
         import openpyxl
         wb = openpyxl.load_workbook(buffer, read_only=True)
         sheetnames = wb.sheetnames
@@ -433,14 +432,36 @@ def estudiantes():
                 drive_updated=""
             )
 
-        df_all = pl.concat(records)
+        # --- Unificar columnas para evitar errores de ancho ---
+        all_columns = set()
+        for df in records:
+            all_columns.update(df.columns)
 
-        # Aquí ajusta según las columnas que realmente existan
-        summary = (
-            df_all.groupby("CLEI")
-            .agg([pl.count().alias("total_registros")])
-            .to_dicts()
-        )
+        aligned = []
+        for df in records:
+            for col in all_columns:
+                if col not in df.columns:
+                    df = df.with_columns(pl.lit(None).alias(col))
+            df = df.select(sorted(all_columns))
+            aligned.append(df)
+
+        df_all = pl.concat(aligned)
+
+        # --- Generar resumen básico ---
+        # Si hay columnas numéricas, calcular promedio; si no, contar registros
+        numeric_cols = [c for c, dt in zip(df_all.columns, df_all.dtypes) if dt in (pl.Float64, pl.Int64)]
+        if numeric_cols:
+            summary = (
+                df_all.groupby("CLEI")
+                .agg([pl.col(c).mean().alias(c) for c in numeric_cols])
+                .to_dicts()
+            )
+        else:
+            summary = (
+                df_all.groupby("CLEI")
+                .agg([pl.count().alias("total_registros")])
+                .to_dicts()
+            )
 
         return render_template(
             "estudiantes.html",
