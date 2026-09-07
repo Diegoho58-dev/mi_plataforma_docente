@@ -3,5 +3,5 @@ gunicorn==21.2.0
 openpyxl==3.1.5
 google-api-python-client==2.181.0
 google-auth==2.40.3
+pandas==1.5.3 
 numpy==1.23.5
-pandas==1.5.3
