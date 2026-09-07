@@ -401,60 +401,6 @@ def grupos():
             drive_updated="",
         )
 
-@app.route("/estudiantes")
-@login_required
-def estudiantes():
-    try:
-        buffer, metadata = download_excel_from_drive()
-        buffer.seek(0)  # importante para que pandas lea desde el inicio
-        sheets = pd.read_excel(buffer, sheet_name=None)
-
-        records = []
-        for name, df in sheets.items():
-            if name.lower() in STUDENT_SHEETS:
-                df = df.dropna(how="all")
-                df["CLEI"] = name
-                records.append(df)
-
-        if not records:
-            return render_template(
-                "estudiantes.html",
-                current_user=session.get("user"),
-                data_error="No se encontraron registros de estudiantes.",
-                summary=[],
-                drive_updated=""
-            )
-
-        df_all = pd.concat(records, ignore_index=True)
-
-        # Convertir columnas de notas a numéricas
-        df_all["math_grade"] = pd.to_numeric(df_all.iloc[:, 9], errors="coerce")
-        df_all["science_grade"] = pd.to_numeric(df_all.iloc[:, 7], errors="coerce")
-
-        # Promedios por CLEI
-        summary = (
-            df_all.groupby("CLEI")[["math_grade", "science_grade"]]
-            .mean()
-            .reset_index()
-            .to_dict(orient="records")
-        )
-
-        return render_template(
-            "estudiantes.html",
-            current_user=session.get("user"),
-            summary=summary,
-            drive_updated=metadata.get("modifiedTime", ""),
-            data_error=None
-        )
-    except Exception:
-        app.logger.exception("Error en análisis de estudiantes")
-        return render_template(
-            "estudiantes.html",
-            current_user=session.get("user"),
-            summary=[],
-            drive_updated="",
-            data_error="No se pudo leer el Excel desde Google Drive."
-        )
 
 
 if __name__ == "__main__":
