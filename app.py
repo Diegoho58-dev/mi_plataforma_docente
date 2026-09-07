@@ -407,34 +407,48 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        import openpyxl
-        wb = openpyxl.load_workbook(buffer, read_only=True)
-        sheetnames = wb.sheetnames
+        # Leer hoja principal (ajusta el nombre según tu Excel)
+        df = pl.read_excel(buffer, sheet_name="Hoja1")
 
-        records = []
-        for sheet in sheetnames:
-            try:
-                buffer.seek(0)
-                df = pl.read_excel(buffer, sheet_name=sheet)
-                # Contar registros en cada hoja
-                count = df.shape[0]
-                records.append({"CLEI": sheet, "total_registros": count})
-            except Exception:
-                continue
+        # Renombrar columnas según tu archivo
+        df = df.rename({
+            "Estudiante": "estudiante",
+            "Faltas Matemáticas": "faltas_mate",
+            "Asistencias Matemáticas": "asis_mate",
+            "Faltas Ciencias": "faltas_cien",
+            "Asistencias Ciencias": "asis_cien"
+        })
 
-        if not records:
-            return render_template(
-                "estudiantes.html",
-                current_user=session.get("user"),
-                data_error=f"No se encontraron registros en las hojas: {sheetnames}",
-                summary=[],
-                drive_updated=""
-            )
+        # Ordenar estudiantes alfabéticamente
+        df = df.sort("estudiante")
+
+        # Convertir a dicts para la tabla
+        estudiantes = df.select([
+            "estudiante", "faltas_mate", "asis_mate", "faltas_cien", "asis_cien"
+        ]).to_dicts()
+
+        # Top 10 por faltas en Matemáticas
+        top_mate = (
+            df.select(["estudiante", "faltas_mate"])
+            .sort("faltas_mate", descending=True)
+            .head(10)
+            .to_dicts()
+        )
+
+        # Top 10 por faltas en Ciencias
+        top_cien = (
+            df.select(["estudiante", "faltas_cien"])
+            .sort("faltas_cien", descending=True)
+            .head(10)
+            .to_dicts()
+        )
 
         return render_template(
             "estudiantes.html",
             current_user=session.get("user"),
-            summary=records,
+            estudiantes=estudiantes,
+            top_mate=top_mate,
+            top_cien=top_cien,
             drive_updated=metadata.get("modifiedTime", ""),
             data_error=None
         )
@@ -443,7 +457,9 @@ def estudiantes():
         return render_template(
             "estudiantes.html",
             current_user=session.get("user"),
-            summary=[],
+            estudiantes=[],
+            top_mate=[],
+            top_cien=[],
             drive_updated="",
             data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
