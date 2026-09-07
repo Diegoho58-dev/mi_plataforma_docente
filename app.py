@@ -416,9 +416,9 @@ def estudiantes():
             try:
                 buffer.seek(0)
                 df = pl.read_excel(buffer, sheet_name=sheet)
-                df = df.drop_nulls()
-                df = df.with_columns(pl.lit(sheet).alias("CLEI"))
-                records.append(df)
+                # Contar registros en cada hoja
+                count = df.shape[0]
+                records.append({"CLEI": sheet, "total_registros": count})
             except Exception:
                 continue
 
@@ -431,46 +431,10 @@ def estudiantes():
                 drive_updated=""
             )
 
-        # Unificar columnas
-        all_columns = set()
-        for df in records:
-            all_columns.update(df.columns)
-
-        aligned = []
-        for df in records:
-            for col in all_columns:
-                if col not in df.columns:
-                    df = df.with_columns(pl.lit(None).alias(col))
-            df = df.select([pl.col(c).cast(pl.Utf8).alias(c) for c in sorted(all_columns)])
-            aligned.append(df)
-
-        df_all = pl.concat(aligned)
-
-        # Resumen simple: contar registros por CLEI
-        summary = (
-            df_all.groupby("CLEI")
-            .agg([pl.count().alias("total_registros")])
-            .fill_null("")  # evitar Null
-            .to_dicts()
-        )
-
-        # Limpiar valores para que sean serializables
-        clean_summary = []
-        for row in summary:
-            clean_row = {}
-            for k, v in row.items():
-                if v is None:
-                    clean_row[k] = ""
-                elif isinstance(v, (int, float, str)):
-                    clean_row[k] = v
-                else:
-                    clean_row[k] = str(v)
-            clean_summary.append(clean_row)
-
         return render_template(
             "estudiantes.html",
             current_user=session.get("user"),
-            summary=clean_summary,
+            summary=records,
             drive_updated=metadata.get("modifiedTime", ""),
             data_error=None
         )
@@ -483,6 +447,6 @@ def estudiantes():
             drive_updated="",
             data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
-
+        
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
