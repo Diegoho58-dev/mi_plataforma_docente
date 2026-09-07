@@ -407,7 +407,6 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        # Detectar nombres de hojas disponibles con openpyxl
         import openpyxl
         wb = openpyxl.load_workbook(buffer, read_only=True)
         sheetnames = wb.sheetnames
@@ -432,7 +431,7 @@ def estudiantes():
                 drive_updated=""
             )
 
-        # --- Unificar columnas para evitar errores de ancho ---
+        # --- Unificar columnas y tipos ---
         all_columns = set()
         for df in records:
             all_columns.update(df.columns)
@@ -442,26 +441,18 @@ def estudiantes():
             for col in all_columns:
                 if col not in df.columns:
                     df = df.with_columns(pl.lit(None).alias(col))
-            df = df.select(sorted(all_columns))
+            # Convertir todas las columnas a texto para evitar conflictos
+            df = df.select([pl.col(c).cast(pl.Utf8).alias(c) for c in sorted(all_columns)])
             aligned.append(df)
 
         df_all = pl.concat(aligned)
 
-        # --- Generar resumen básico ---
-        # Si hay columnas numéricas, calcular promedio; si no, contar registros
-        numeric_cols = [c for c, dt in zip(df_all.columns, df_all.dtypes) if dt in (pl.Float64, pl.Int64)]
-        if numeric_cols:
-            summary = (
-                df_all.groupby("CLEI")
-                .agg([pl.col(c).mean().alias(c) for c in numeric_cols])
-                .to_dicts()
-            )
-        else:
-            summary = (
-                df_all.groupby("CLEI")
-                .agg([pl.count().alias("total_registros")])
-                .to_dicts()
-            )
+        # --- Resumen simple: contar registros por CLEI ---
+        summary = (
+            df_all.groupby("CLEI")
+            .agg([pl.count().alias("total_registros")])
+            .to_dicts()
+        )
 
         return render_template(
             "estudiantes.html",
