@@ -406,7 +406,6 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        # Lista de hojas que quieres procesar
         student_sheets = ["CLEI 3A", "CLEI 3B", "CLEI 4", "CLEI 5-6", "Multigrado"]
 
         records = []
@@ -416,7 +415,7 @@ def estudiantes():
                 df = df.drop_nulls()
                 df = df.with_columns(pl.lit(sheet).alias("CLEI"))
                 records.append(df)
-                buffer.seek(0)  # reiniciar puntero para la siguiente hoja
+                buffer.seek(0)
             except Exception:
                 continue
 
@@ -431,13 +430,12 @@ def estudiantes():
 
         df_all = pl.concat(records)
 
-        # Convertir columnas de notas a numéricas (ajusta índices según tu Excel)
+        # Usa nombres de columnas en lugar de índices
         df_all = df_all.with_columns([
-            pl.col(df_all.columns[9]).cast(pl.Float64).alias("math_grade"),
-            pl.col(df_all.columns[7]).cast(pl.Float64).alias("science_grade")
+            pl.col("Nota Matemáticas").cast(pl.Float64).alias("math_grade"),
+            pl.col("Nota Ciencias Naturales").cast(pl.Float64).alias("science_grade")
         ])
 
-        # Promedios por CLEI
         summary = (
             df_all.groupby("CLEI")
             .agg([
