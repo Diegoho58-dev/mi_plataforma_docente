@@ -407,8 +407,25 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        # Leer hoja principal (ajusta el nombre según tu Excel)
-        df = pl.read_excel(buffer, sheet_name="Hoja1")
+        import openpyxl
+        wb = openpyxl.load_workbook(buffer, read_only=True)
+        sheetnames = wb.sheetnames
+
+        if not sheetnames:
+            return render_template(
+                "estudiantes.html",
+                current_user=session.get("user"),
+                estudiantes=[],
+                top_mate=[],
+                top_cien=[],
+                drive_updated="",
+                data_error="El archivo no contiene hojas."
+            )
+
+        # Usar la primera hoja disponible
+        first_sheet = sheetnames[0]
+        buffer.seek(0)
+        df = pl.read_excel(buffer, sheet_name=first_sheet)
 
         # Renombrar columnas según tu archivo
         df = df.rename({
@@ -463,6 +480,8 @@ def estudiantes():
             drive_updated="",
             data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
-        
+
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
