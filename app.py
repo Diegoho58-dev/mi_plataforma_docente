@@ -399,23 +399,26 @@ def grupos():
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
         )
-
 @app.route("/estudiantes")
 @login_required
 def estudiantes():
     try:
         buffer, metadata = download_excel_from_drive()
-        buffer.seek(0)  # reiniciar puntero
+        buffer.seek(0)
 
-        # Leer todas las hojas con Polars
-        sheets = pl.read_excel(buffer, sheet_id=None)
+        # Lista de hojas que quieres procesar
+        student_sheets = ["CLEI 3A", "CLEI 3B", "CLEI 4", "CLEI 5-6", "Multigrado"]
 
         records = []
-        for name, df in sheets.items():
-            if name.lower() in STUDENT_SHEETS:
+        for sheet in student_sheets:
+            try:
+                df = pl.read_excel(buffer, sheet_name=sheet)
                 df = df.drop_nulls()
-                df = df.with_columns(pl.lit(name).alias("CLEI"))
+                df = df.with_columns(pl.lit(sheet).alias("CLEI"))
                 records.append(df)
+                buffer.seek(0)  # reiniciar puntero para la siguiente hoja
+            except Exception:
+                continue
 
         if not records:
             return render_template(
@@ -428,7 +431,7 @@ def estudiantes():
 
         df_all = pl.concat(records)
 
-        # Convertir columnas de notas a numéricas
+        # Convertir columnas de notas a numéricas (ajusta índices según tu Excel)
         df_all = df_all.with_columns([
             pl.col(df_all.columns[9]).cast(pl.Float64).alias("math_grade"),
             pl.col(df_all.columns[7]).cast(pl.Float64).alias("science_grade")
@@ -460,6 +463,7 @@ def estudiantes():
             drive_updated="",
             data_error=f"No se pudo leer el Excel desde Google Drive: {e}"
         )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
