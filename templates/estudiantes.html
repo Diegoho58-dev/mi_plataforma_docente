@@ -7,52 +7,59 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <nav class="menu">
-        <a class="menu-item" href="{{ url_for('home') }}">⌂ Inicio</a>
-        <a class="menu-item" href="{{ url_for('grupos') }}">♧ Mis grupos</a>
-        <a class="menu-item active" href="{{ url_for('estudiantes') }}">♙ Estudiantes</a>
-      </nav>
-    </aside>
+  <main class="main-content">
+    <h1>Listado de Estudiantes</h1>
 
-    <main class="main-content">
-      <h1>Resumen de Estudiantes</h1>
-
-      {% if data_error %}
-        <div class="data-alert">{{ data_error }}</div>
-      {% else %}
-        <table class="matrix">
-          <thead>
+    {% if data_error %}
+      <div class="data-alert">{{ data_error }}</div>
+    {% else %}
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Estudiante</th>
+            <th>Faltas Matemáticas</th>
+            <th>Asistencias Matemáticas</th>
+            <th>Faltas Ciencias</th>
+            <th>Asistencias Ciencias</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in estudiantes %}
             <tr>
-              <th>CLEI / Hoja</th>
-              <th>Total registros</th>
+              <td>{{ row["estudiante"] }}</td>
+              <td>{{ row["faltas_mate"] }}</td>
+              <td>{{ row["asis_mate"] }}</td>
+              <td>{{ row["faltas_cien"] }}</td>
+              <td>{{ row["asis_cien"] }}</td>
             </tr>
-          </thead>
-          <tbody>
-            {% for row in summary %}
-              <tr>
-                <td>{{ row["CLEI"] }}</td>
-                <td>{{ row["total_registros"] }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+          {% endfor %}
+        </tbody>
+      </table>
 
-        <div id="chart"></div>
-        <script>
-          const data = [{
-            x: {{ summary|map(attribute='CLEI')|list|tojson }},
-            y: {{ summary|map(attribute='total_registros')|list|tojson }},
-            type: 'bar',
-            name: 'Registros',
-            marker: {color: '#078f91'}
-          }];
-          const layout = {title: 'Registros por hoja'};
-          Plotly.newPlot('chart', data, layout);
-        </script>
-      {% endif %}
-    </main>
-  </div>
+      <h2>Top 10 Faltas en Matemáticas</h2>
+      <div id="chart_mate"></div>
+      <script>
+        const dataMate = [{
+          x: {{ top_mate|map(attribute='estudiante')|list|tojson }},
+          y: {{ top_mate|map(attribute='faltas_mate')|list|tojson }},
+          type: 'bar',
+          marker: {color: '#d9534f'}
+        }];
+        Plotly.newPlot('chart_mate', dataMate, {title: 'Estudiantes con más faltas en Matemáticas'});
+      </script>
+
+      <h2>Top 10 Faltas en Ciencias Naturales</h2>
+      <div id="chart_cien"></div>
+      <script>
+        const dataCien = [{
+          x: {{ top_cien|map(attribute='estudiante')|list|tojson }},
+          y: {{ top_cien|map(attribute='faltas_cien')|list|tojson }},
+          type: 'bar',
+          marker: {color: '#5bc0de'}
+        }];
+        Plotly.newPlot('chart_cien', dataCien, {title: 'Estudiantes con más faltas en Ciencias Naturales'});
+      </script>
+    {% endif %}
+  </main>
 </body>
 </html>
