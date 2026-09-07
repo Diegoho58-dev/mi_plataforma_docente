@@ -450,14 +450,21 @@ def estudiantes():
         summary = (
             df_all.groupby("CLEI")
             .agg([pl.count().alias("total_registros")])
-            .fill_null("")  # evitar valores Null
+            .fill_null("")  # evitar Null
             .to_dicts()
         )
 
-        # Convertir valores a tipos serializables
+        # Limpiar valores para que sean serializables
         clean_summary = []
         for row in summary:
-            clean_row = {k: (v if v is not None else "") for k, v in row.items()}
+            clean_row = {}
+            for k, v in row.items():
+                if v is None:
+                    clean_row[k] = ""
+                elif isinstance(v, (int, float, str)):
+                    clean_row[k] = v
+                else:
+                    clean_row[k] = str(v)
             clean_summary.append(clean_row)
 
         return render_template(
