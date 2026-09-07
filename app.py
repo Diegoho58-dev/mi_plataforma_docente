@@ -2,10 +2,8 @@ import io
 import json
 import os
 import re
-
 from datetime import date, datetime
 from functools import wraps
-
 from flask import Flask, redirect, render_template, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
