@@ -3,6 +3,7 @@ import json
 import os
 import re
 import polars as pl
+import openpyxl
 from datetime import date, datetime
 from functools import wraps
 from flask import Flask, redirect, render_template, request, session, url_for
@@ -407,26 +408,37 @@ def estudiantes():
         buffer, metadata = download_excel_from_drive()
         buffer.seek(0)
 
-        # Leer una hoja (ajusta el nombre según tu Excel)
-        df = pl.read_excel(buffer, sheet_name="Planeación")
+        # Ver nombres de hojas disponibles
+        import openpyxl
+        wb = openpyxl.load_workbook(buffer, read_only=True)
+        sheetnames = wb.sheetnames
 
-        # Limpiar nulos
-        df = df.drop_nulls()
+        records = []
+        for sheet in sheetnames:
+            try:
+                buffer.seek(0)
+                df = pl.read_excel(buffer, sheet_name=sheet)
+                df = df.drop_nulls()
+                df = df.with_columns(pl.lit(sheet).alias("CLEI"))
+                records.append(df)
+            except Exception:
+                continue
 
-        # Renombrar columnas relevantes
-        df = df.rename({
-            "Grupo": "grupo",
-            "Asignatura": "asignatura",
-            "Fecha": "fecha",
-            "Tema - planeación ": "tema"
-        })
+        if not records:
+            return render_template(
+                "estudiantes.html",
+                current_user=session.get("user"),
+                data_error=f"No se encontraron registros en las hojas: {sheetnames}",
+                summary=[],
+                drive_updated=""
+            )
 
-        # Agrupar por grupo y contar registros
+        df_all = pl.concat(records)
+
+        # Aquí ajusta según las columnas que realmente existan
         summary = (
-            df.groupby("grupo")
-            .agg([
-                pl.count().alias("total_registros")
-            ])
+            df_all.groupby("CLEI")
+            .agg([pl.count().alias("total_registros")])
             .to_dicts()
         )
 
