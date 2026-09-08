@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import unicodedata
 from datetime import date, datetime
 from functools import wraps
 
@@ -191,6 +192,23 @@ def read_planning_rows(buffer):
     return classes
 
 
+def normalize_header(value):
+    text = clean_text(value).lower()
+    return "".join(
+        character for character in unicodedata.normalize("NFD", text)
+        if unicodedata.category(character) != "Mn"
+    )
+
+
+def find_column(headers, aliases, fallback=None):
+    aliases = [normalize_header(alias) for alias in aliases]
+    for index, header in enumerate(headers):
+        normalized = normalize_header(header)
+        if any(alias in normalized for alias in aliases):
+            return index
+    return fallback
+
+
 def read_student_records(buffer):
     from openpyxl import load_workbook
 
@@ -199,40 +217,49 @@ def read_student_records(buffer):
     records = []
     for worksheet in workbook.worksheets:
         sheet_name = clean_text(worksheet.title)
-        normalized_sheet = sheet_name.lower()
+        normalized_sheet = normalize_header(sheet_name)
         if normalized_sheet not in STUDENT_SHEETS:
             continue
-        for row in worksheet.iter_rows(min_row=2, values_only=True):
+        rows = worksheet.iter_rows(values_only=True)
+        header = list(next(rows, ()))
+        # The old fixed positions remain fallbacks, but headers take priority.
+        date_col = find_column(header, ["fecha"], 0)
+        name_col = find_column(header, ["nombre", "estudiante", "alumno"], 2)
+        identification_col = find_column(header, ["identificacion", "documento", "cedula", "doc"], 3)
+        clei_col = find_column(header, ["clei", "nivel"], 4)
+        group_col = find_column(header, ["grupo"], 5)
+        math_attendance_col = find_column(header, ["asistencia matematicas", "asistio matematicas", "matematicas asistencia", "matematicas asistio", "matematicas presente", "mate asistencia"], 8)
+        math_grade_col = find_column(header, ["nota matematicas", "calificacion matematicas", "matematicas nota", "matematicas calificacion", "matematicas promedio"], 9)
+        science_attendance_col = find_column(header, ["asistencia ciencias", "asistio ciencias", "ciencias asistencia", "ciencias asistio", "ciencias presente", "ciencias naturales asistencia"], 6)
+        science_grade_col = find_column(header, ["nota ciencias", "calificacion ciencias", "ciencias nota", "ciencias calificacion", "ciencias naturales nota", "ciencias naturales promedio"], 7)
+        observation_col = find_column(header, ["observacion", "observaciones"], 10)
+        for row in rows:
             values = list(row)
             if not any(clean_text(value) for value in values):
                 continue
-            name = clean_text(values[2]) if len(values) > 2 else ""
-            identification = clean_text(values[3]) if len(values) > 3 else ""
-            group = clean_text(values[5]) if len(values) > 5 else sheet_name
+            get = lambda index: values[index] if index is not None and index < len(values) else ""
+            name = clean_text(get(name_col))
+            identification = clean_text(get(identification_col))
+            group = clean_text(get(group_col)) or sheet_name
             if not name and not identification:
                 continue
             clei_label = {
-                "clei 2": "2",
-                "clei 3a": "3A",
-                "clei3b": "3B",
-                "clei 4": "4",
-                "clei 5-6": "5-6",
-                "mult. asistencia": "Multigrado",
-            }.get(normalized_sheet, clean_text(values[4]) if len(values) > 4 else "")
+                "clei 2": "2", "clei 3a": "3A", "clei3b": "3B",
+                "clei 4": "4", "clei 5-6": "5-6", "mult. asistencia": "Multigrado",
+            }.get(normalized_sheet, clean_text(get(clei_col)))
+            class_date = get(date_col)
             records.append({
-                "sheet": sheet_name,
-                "name": name,
-                "identification": identification,
+                "sheet": sheet_name, "name": name, "identification": identification,
                 "group": group,
                 "context": "Multigrado" if normalized_sheet == "mult. asistencia" or "multigrado" in group.lower() else "Alta",
-                "date": parse_date(values[0]) if len(values) > 0 else None,
-                "date_label": format_date(values[0]) if len(values) > 0 and parse_date(values[0]) else "",
+                "date": parse_date(class_date),
+                "date_label": format_date(class_date) if parse_date(class_date) else "",
                 "clei": clei_label,
-                "science_attendance": clean_text(values[6]) if len(values) > 6 else "",
-                "science_grade": clean_text(values[7]) if len(values) > 7 else "",
-                "math_attendance": clean_text(values[8]) if len(values) > 8 else "",
-                "math_grade": clean_text(values[9]) if len(values) > 9 else "",
-                "observation": clean_text(values[10]) if len(values) > 10 else "",
+                "science_attendance": clean_text(get(science_attendance_col)),
+                "science_grade": clean_text(get(science_grade_col)),
+                "math_attendance": clean_text(get(math_attendance_col)),
+                "math_grade": clean_text(get(math_grade_col)),
+                "observation": clean_text(get(observation_col)),
             })
     return records
 
