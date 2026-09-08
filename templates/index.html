@@ -19,8 +19,8 @@
         <a class="menu-item" href="{{ url_for('grupos') }}"><span class="menu-icon">♧</span>Mis grupos</a>
         <a class="menu-item" href="{{ url_for('estudiantes') }}"><span class="menu-icon">♙</span>Estudiantes</a>
         <a class="menu-item" href="{{ url_for('asistencia') }}"><span class="menu-icon">✓</span>Asistencia</a>
-        <a class="menu-item" href="#seguimiento"><span class="menu-icon">⌁</span>Seguimiento</a>
-       <a class="menu-item" href="{{ url_for('materiales') }}">  <span class="menu-icon">□</span>Materiales</a>
+        <a class="menu-item" href="/seguimiento"><span class="menu-icon">⌁</span>Seguimiento</a>
+        <a class="menu-item" href="/materiales"><span class="menu-icon">□</span>Materiales</a>
       </nav>
       <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a>
     </aside>
@@ -64,3 +64,4 @@
   </div>
 </body>
 </html>
+
