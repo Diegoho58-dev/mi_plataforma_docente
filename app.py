@@ -651,3 +651,52 @@ def asistencia():
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("asistencia.html", current_user=session.get("user"), **page_data)
 
+
+@app.route("/materiales")
+@login_required
+def materiales():
+    page_data = {
+        "materials": [],
+        "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
+        "context_filter": "",
+        "group_filter": "",
+        "search": "",
+        "groups": [],
+        "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("materiales.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_excel_from_drive()
+        classes = read_planning_rows(buffer)
+        context_filter = request.args.get("contexto", "").strip()
+        group_filter = request.args.get("grupo", "").strip()
+        search = request.args.get("buscar", "").strip()
+        contexts = page_data["contexts"]
+        if context_filter not in contexts:
+            context_filter = ""
+        groups = sorted({item["group"] for item in classes if item["group"]})
+        if group_filter not in groups:
+            group_filter = ""
+        search_lower = search.lower()
+        materials = [
+            item for item in classes
+            if item["drive_link"]
+            and (not context_filter or item["context"] == context_filter)
+            and (not group_filter or item["group"] == group_filter)
+            and (not search_lower or search_lower in f"{item['subject']} {item['theme']} {item['group']} {item['observations']}".lower())
+        ]
+        page_data.update({
+            "materials": materials,
+            "context_filter": context_filter,
+            "group_filter": group_filter,
+            "search": search,
+            "groups": groups,
+            "drive_updated": metadata.get("modifiedTime", ""),
+        })
+        return render_template("materiales.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudieron leer los materiales")
+        page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
+        return render_template("materiales.html", current_user=session.get("user"), **page_data)
