@@ -810,4 +810,3 @@ def seguimiento():
         app.logger.exception("No se pudo generar seguimiento estadístico")
         page_data["data_error"] = "No se pudo generar el análisis desde Google Drive."
         return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
-
