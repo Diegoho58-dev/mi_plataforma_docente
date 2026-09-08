@@ -515,8 +515,9 @@ def attendance_value(value):
 def asistencia():
     page_data = {
         "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
-        "cycles": [], "weeks": [1, 2, 3], "clei_filter": "", "cycle_filter": "",
-        "week_filter": "", "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
+        "cycles": [], "weeks": [1, 2, 3], "subjects": ["Matemáticas", "Ciencias Naturales"],
+        "clei_filter": [], "cycle_filter": [], "week_filter": [], "subject_filter": [],
+        "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
         "attendance_stats": [], "total_never_attended": 0,
         "data_error": None,
     }
@@ -526,9 +527,10 @@ def asistencia():
     try:
         buffer, metadata = download_excel_from_drive()
         records = read_student_records(buffer)
-        clei_filter = request.args.get("clei", "").strip()
-        cycle_filter = request.args.get("ciclo", "").strip()
-        week_filter = request.args.get("semana", "").strip()
+        clei_filter = request.args.getlist("clei")
+        cycle_filter = request.args.getlist("ciclo")
+        week_filter = request.args.getlist("semana")
+        subject_filter = request.args.getlist("materia")
         start_date_text = request.args.get("desde", "").strip()
         end_date_text = request.args.get("hasta", "").strip()
         try:
@@ -545,59 +547,70 @@ def asistencia():
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
         cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
         weeks = [1, 2, 3]
-        if clei_filter not in cleis: clei_filter = ""
-        if cycle_filter not in {str(value) for value in cycles}: cycle_filter = ""
-        if week_filter not in {str(value) for value in weeks}: week_filter = ""
+        clei_filter = [value for value in clei_filter if value in cleis]
+        cycle_filter = [value for value in cycle_filter if value in {str(item) for item in cycles}]
+        week_filter = [value for value in week_filter if value in {str(item) for item in weeks}]
+        subjects = ["Matemáticas", "Ciencias Naturales"]
+        subject_filter = [value for value in subject_filter if value in subjects]
         rows = []
         filtered_records = []
         for item in records:
             cycle = cycle_for_date(item["date"])
-            if clei_filter and item["clei"] != clei_filter: continue
-            if cycle_filter and (not cycle or cycle["cycle"] != int(cycle_filter)): continue
-            if week_filter and (not cycle or cycle["week"] != int(week_filter)): continue
+            if clei_filter and item["clei"] not in clei_filter: continue
+            if cycle_filter and (not cycle or str(cycle["cycle"]) not in cycle_filter): continue
+            if week_filter and (not cycle or str(cycle["week"]) not in week_filter): continue
             if start_date and (not item["date"] or item["date"] < start_date): continue
             if end_date and (not item["date"] or item["date"] > end_date): continue
             filtered_records.append(item)
-            if item["math_attendance"] or item["math_grade"]:
-                subject, raw_status = "Matemáticas", item["math_attendance"]
-            elif item["science_attendance"] or item["science_grade"]:
-                subject, raw_status = "Ciencias Naturales", item["science_attendance"]
-            else:
-                continue
-            status = attendance_value(raw_status)
-            rows.append({
-                "name": item["name"], "group": item["group"], "clei": item["clei"],
-                "context": item["context"], "date_label": item["date_label"], "date": item["date"],
-                "subject": subject, "status": status, "cycle": cycle["cycle"] if cycle else "—",
-                "week": cycle["week"] if cycle else "—",
-            })
+            subject_fields = (
+                ("Matemáticas", item["math_attendance"], item["math_grade"]),
+                ("Ciencias Naturales", item["science_attendance"], item["science_grade"]),
+            )
+            for subject, raw_status, grade in subject_fields:
+                if subject_filter and subject not in subject_filter:
+                    continue
+                if not (raw_status or grade):
+                    continue
+                rows.append({
+                    "name": item["name"], "group": item["group"], "clei": item["clei"],
+                    "context": item["context"], "date_label": item["date_label"], "date": item["date"],
+                    "subject": subject, "status": attendance_value(raw_status),
+                    "cycle": cycle["cycle"] if cycle else "—", "week": cycle["week"] if cycle else "—",
+                })
         rows.sort(key=lambda item: (item["date"] or date.min, item["name"].lower()), reverse=True)
         attendance_by_student = {}
         for item in filtered_records:
             if not item["name"]:
                 continue
-            if not (item["math_attendance"] or item["math_grade"] or item["science_attendance"] or item["science_grade"]):
-                continue
-            key = (item["name"], item["identification"], item["group"])
-            summary = attendance_by_student.setdefault(key, {
-                "name": item["name"], "group": item["group"], "clei": item["clei"],
-                "context": item["context"], "sessions": 0, "present": 0, "absent": 0,
-            })
-            raw_status = item["math_attendance"] if (item["math_attendance"] or item["math_grade"]) else item["science_attendance"]
-            status = attendance_value(raw_status)
-            summary["sessions"] += 1
-            if status == "Asistió":
-                summary["present"] += 1
-            elif status == "No asistió":
-                summary["absent"] += 1
+            subject_fields = (
+                ("Matemáticas", item["math_attendance"], item["math_grade"]),
+                ("Ciencias Naturales", item["science_attendance"], item["science_grade"]),
+            )
+            for subject, raw_status, grade in subject_fields:
+                if subject_filter and subject not in subject_filter:
+                    continue
+                if not (raw_status or grade):
+                    continue
+                key = (item["name"], item["identification"], item["group"], subject)
+                summary = attendance_by_student.setdefault(key, {
+                    "name": item["name"], "group": item["group"], "clei": item["clei"],
+                    "context": item["context"], "subject": subject, "sessions": 0, "present": 0, "absent": 0,
+                })
+                status = attendance_value(raw_status)
+                summary["sessions"] += 1
+                if status == "Asistió":
+                    summary["present"] += 1
+                elif status == "No asistió":
+                    summary["absent"] += 1
         attendance_stats = list(attendance_by_student.values())
         for summary in attendance_stats:
             summary["never_attended"] = summary["present"] == 0
             summary["attendance_rate"] = round(summary["present"] * 100 / summary["sessions"], 1) if summary["sessions"] else 0
         attendance_stats.sort(key=lambda item: (not item["never_attended"], -item["absent"], item["present"], item["name"].lower()))
         page_data.update({
-            "rows": rows, "cleis": cleis, "cycles": cycles, "weeks": weeks,
+            "rows": rows, "cleis": cleis, "cycles": cycles, "weeks": weeks, "subjects": subjects,
             "clei_filter": clei_filter, "cycle_filter": cycle_filter, "week_filter": week_filter,
+            "subject_filter": subject_filter,
             "start_date": start_date_text, "end_date": end_date_text,
             "total_present": sum(row["status"] == "Asistió" for row in rows),
             "total_absent": sum(row["status"] == "No asistió" for row in rows),
