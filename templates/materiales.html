@@ -1,1 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Materiales | Panel Docente</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    .materials-toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin-bottom:20px}.materials-toolbar label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}.materials-toolbar select,.materials-toolbar input{min-width:190px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit}.materials-toolbar .primary-button{width:auto;margin:0;padding:11px 18px}.materials-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.material-card{display:flex;flex-direction:column;gap:12px;padding:20px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}.material-card h2{margin:0;color:var(--ink);font-size:17px}.material-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.material-meta{display:flex;flex-wrap:wrap;gap:7px}.material-button{display:inline-block;width:max-content;margin-top:auto;padding:10px 14px;border-radius:7px;color:#fff;background:var(--navy);font-size:12px;font-weight:700;text-decoration:none}.material-button:hover{background:var(--teal)}.material-date{color:var(--green-dark);font-size:12px;font-weight:700}.material-empty{grid-column:1/-1}.material-source{color:var(--muted);font-size:11px}@media(max-width:760px){.materials-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">▰</div><div><strong>AulaCol</strong><span>Plataforma Docente</span></div></div>
+    <div class="profile"><img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente"><h2>Diego Hoyos</h2><p>Docente de Matemáticas<br>y Ciencias Naturales</p></div>
+    <nav class="menu" aria-label="Navegación principal">
+      <a class="menu-item" href="{{ url_for('home') }}"><span class="menu-icon">⌂</span>Inicio</a>
+      <a class="menu-item" href="{{ url_for('grupos') }}"><span class="menu-icon">♧</span>Mis grupos</a>
+      <a class="menu-item" href="{{ url_for('estudiantes') }}"><span class="menu-icon">♙</span>Estudiantes</a>
+      <a class="menu-item" href="{{ url_for('asistencia') }}"><span class="menu-icon">✓</span>Asistencia</a>
+      <a class="menu-item active" href="{{ url_for('materiales') }}"><span class="menu-icon">□</span>Materiales</a>
+    </nav>
+    <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a>
+  </aside>
+  <main class="main-content">
+    <header class="topbar"><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026</span></header>
+    <div class="page-content">
+      <section class="welcome-section"><p class="eyebrow">RECURSOS DE CLASE</p><h1>Materiales</h1><p class="subtitle">Accede a los enlaces de Drive registrados para cada clase del Excel.</p></section>
+      {% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>Verifica la conexión y los permisos del archivo en Google Drive.</small></div>{% endif %}
+      <form class="materials-toolbar" method="get" action="{{ url_for('materiales') }}">
+        <div><label for="buscar">Buscar</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Tema, asignatura o grupo"></div>
+        <div><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Todos los contextos</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select></div>
+        <div><label for="grupo">Grupo</label><select id="grupo" name="grupo"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select></div>
+        <button class="primary-button" type="submit">Filtrar</button>
+      </form>
+      <div class="materials-grid">
+        {% for item in materials %}
+        <article class="material-card">
+          <div class="material-meta"><span class="tag {{ item.context_class }}">{{ item.context }}</span><span class="material-date">{{ item.date_label }}</span></div>
+          <h2>{{ item.subject }} · {{ item.group }}</h2>
+          <p><strong>Tema:</strong> {{ item.theme }}</p>
+          {% if item.observations %}<p><strong>Observaciones:</strong> {{ item.observations }}</p>{% endif %}
+          {% if item.cycle %}<p class="material-source">Ciclo {{ item.cycle }} · Semana {{ item.cycle_week }} de 3 · Hoja {{ item.source }}</p>{% endif %}
+          <a class="material-button" href="{{ item.drive_link }}" target="_blank" rel="noopener noreferrer">Abrir material en Drive ↗</a>
+        </article>
+        {% else %}
+        <div class="panel empty-state material-empty">No hay materiales con enlace de Drive para estos filtros.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
 
