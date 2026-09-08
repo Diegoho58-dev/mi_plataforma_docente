@@ -600,6 +600,7 @@ def asistencia():
                 "name": item["name"], "group": item["group"], "clei": item["clei"],
                 "context": item["context"], "date_label": item["date_label"], "date": item["date"],
                 "math_status": math_status, "science_status": science_status,
+                "observation": clean_text(item.get("observation", "")),
                 "cycle": cycle["cycle"] if cycle else "—", "week": cycle["week"] if cycle else "—",
             })
 
@@ -608,7 +609,11 @@ def asistencia():
                 "name": item["name"], "group": item["group"], "clei": item["clei"], "context": item["context"],
                 "math_sessions": 0, "math_present": 0, "math_absent": 0,
                 "science_sessions": 0, "science_present": 0, "science_absent": 0,
+                "observations": [], "absence_observations": [],
             })
+            observation = clean_text(item.get("observation", ""))
+            if observation and observation not in summary["observations"]:
+                summary["observations"].append(observation)
             for prefix, raw_status, grade in (
                 ("math", item["math_attendance"], item["math_grade"]),
                 ("science", item["science_attendance"], item["science_grade"]),
@@ -616,6 +621,8 @@ def asistencia():
                 if not (raw_status or grade):
                     continue
                 status = attendance_value(raw_status)
+                if observation and status == "No asistió" and observation not in summary["absence_observations"]:
+                    summary["absence_observations"].append(observation)
                 summary[f"{prefix}_sessions"] += 1
                 if status == "Asistió":
                     summary[f"{prefix}_present"] += 1
@@ -632,6 +639,7 @@ def asistencia():
             summary["science_rate"] = round(summary["science_present"] * 100 / summary["science_sessions"], 1) if summary["science_sessions"] else 0
             summary["total_rate"] = round(summary["total_present"] * 100 / summary["total_sessions"], 1) if summary["total_sessions"] else 0
             summary["never_attended"] = summary["total_present"] == 0
+            summary["possible_cause"] = " · ".join(summary["absence_observations"]) if summary["absence_observations"] else "No hay observación registrada para explicar la inasistencia."
             attendance_stats.append(summary)
         attendance_stats.sort(key=lambda item: (not item["never_attended"], -item["total_absent"], item["total_present"], item["name"].lower()))
         page_data.update({
@@ -802,3 +810,4 @@ def seguimiento():
         app.logger.exception("No se pudo generar seguimiento estadístico")
         page_data["data_error"] = "No se pudo generar el análisis desde Google Drive."
         return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
+
