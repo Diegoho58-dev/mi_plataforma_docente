@@ -498,3 +498,73 @@ def estudiantes():
         app.logger.exception("No se pudo leer estudiantes")
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
+
+
+
+def attendance_value(value):
+    text = clean_text(value).lower()
+    if text in {"si", "sí", "s", "asistio", "asistió", "presente", "p"}:
+        return "Asistió"
+    if text in {"no", "n", "ausente", "inasistente", "i"}:
+        return "No asistió"
+    return clean_text(value) or "Sin registro"
+
+
+@app.route("/asistencia")
+@login_required
+def asistencia():
+    page_data = {
+        "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
+        "cycles": [], "weeks": [1, 2, 3], "clei_filter": "", "cycle_filter": "",
+        "week_filter": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
+        "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("asistencia.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_excel_from_drive()
+        records = read_student_records(buffer)
+        clei_filter = request.args.get("clei", "").strip()
+        cycle_filter = request.args.get("ciclo", "").strip()
+        week_filter = request.args.get("semana", "").strip()
+        cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
+        cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
+        weeks = [1, 2, 3]
+        if clei_filter not in cleis: clei_filter = ""
+        if cycle_filter not in {str(value) for value in cycles}: cycle_filter = ""
+        if week_filter not in {str(value) for value in weeks}: week_filter = ""
+        rows = []
+        for item in records:
+            cycle = cycle_for_date(item["date"])
+            if clei_filter and item["clei"] != clei_filter: continue
+            if cycle_filter and (not cycle or cycle["cycle"] != int(cycle_filter)): continue
+            if week_filter and (not cycle or cycle["week"] != int(week_filter)): continue
+            if item["math_attendance"] or item["math_grade"]:
+                subject, raw_status = "Matemáticas", item["math_attendance"]
+            elif item["science_attendance"] or item["science_grade"]:
+                subject, raw_status = "Ciencias Naturales", item["science_attendance"]
+            else:
+                continue
+            status = attendance_value(raw_status)
+            rows.append({
+                "name": item["name"], "group": item["group"], "clei": item["clei"],
+                "context": item["context"], "date_label": item["date_label"], "date": item["date"],
+                "subject": subject, "status": status, "cycle": cycle["cycle"] if cycle else "—",
+                "week": cycle["week"] if cycle else "—",
+            })
+        rows.sort(key=lambda item: (item["date"] or date.min, item["name"].lower()), reverse=True)
+        page_data.update({
+            "rows": rows, "cleis": cleis, "cycles": cycles, "weeks": weeks,
+            "clei_filter": clei_filter, "cycle_filter": cycle_filter, "week_filter": week_filter,
+            "total_present": sum(row["status"] == "Asistió" for row in rows),
+            "total_absent": sum(row["status"] == "No asistió" for row in rows),
+            "total_rows": len(rows), "data_error": None,
+            "drive_updated": metadata.get("modifiedTime", ""),
+        })
+        return render_template("asistencia.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudo leer asistencia")
+        page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
+        return render_template("asistencia.html", current_user=session.get("user"), **page_data)
+
