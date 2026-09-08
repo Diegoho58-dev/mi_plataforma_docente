@@ -431,3 +431,70 @@ def grupos():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
+
+@app.route("/estudiantes")
+@login_required
+def estudiantes():
+    page_data = {
+        "students": [],
+        "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
+        "contexts": ["Alta", "Multigrado"],
+        "clei_filter": "",
+        "context_filter": "",
+        "search": "",
+        "total_students": 0,
+        "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_excel_from_drive()
+        records = read_student_records(buffer)
+        search = request.args.get("buscar", "").strip().lower()
+        clei_filter = request.args.get("clei", "").strip()
+        context_filter = request.args.get("contexto", "").strip()
+        cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
+        contexts = ["Alta", "Multigrado"]
+        if clei_filter not in cleis:
+            clei_filter = ""
+        if context_filter not in contexts:
+            context_filter = ""
+        unique = {}
+        for item in records:
+            if search and search not in f"{item['name']} {item['group']}".lower():
+                continue
+            if clei_filter and item["clei"] != clei_filter:
+                continue
+            if context_filter and item["context"] != context_filter:
+                continue
+            key = (item["name"], item["identification"], item["group"])
+            student = unique.setdefault(key, {
+                "name": item["name"], "group": item["group"], "clei": item["clei"],
+                "context": item["context"], "dates": set(), "math_grades": [], "science_grades": [],
+            })
+            if item["date"]:
+                student["dates"].add(item["date"])
+            for field, target in (("math_grade", "math_grades"), ("science_grade", "science_grades")):
+                try:
+                    student[target].append(float(item[field].replace(",", ".")))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+        students = []
+        for student in unique.values():
+            student["date_count"] = len(student.pop("dates"))
+            student["math_average"] = round(sum(student["math_grades"]) / len(student["math_grades"]), 2) if student["math_grades"] else None
+            student["science_average"] = round(sum(student["science_grades"]) / len(student["science_grades"]), 2) if student["science_grades"] else None
+            students.append(student)
+        page_data.update({
+            "students": sorted(students, key=lambda item: item["name"].lower()),
+            "cleis": cleis, "contexts": contexts, "clei_filter": clei_filter,
+            "context_filter": context_filter, "search": request.args.get("buscar", "").strip(),
+            "total_students": len(students), "drive_updated": metadata.get("modifiedTime", ""),
+        })
+        return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudo leer estudiantes")
+        page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
+        return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
