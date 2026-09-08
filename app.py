@@ -700,3 +700,105 @@ def materiales():
         app.logger.exception("No se pudieron leer los materiales")
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("materiales.html", current_user=session.get("user"), **page_data)
+
+
+@app.route("/seguimiento")
+@login_required
+def seguimiento():
+    page_data = {
+        "stats": {
+            "classes": 0, "students": 0, "groups": 0, "attendance_rate": 0,
+            "math_rate": 0, "science_rate": 0, "math_average": None, "science_average": None,
+            "risk_count": 0,
+        },
+        "chart_data": json.dumps({"dates": [], "math": [], "science": [], "contexts": [], "risks": []}),
+        "interpretations": [], "risk_students": [], "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_excel_from_drive()
+        classes = read_planning_rows(buffer)
+        records = read_student_records(buffer)
+        valid_records = [item for item in records if item["date"]]
+        unique_students = {(item["name"], item["identification"], item["group"]) for item in valid_records if item["name"]}
+        attendance = {"math": {"sessions": 0, "present": 0, "absent": 0}, "science": {"sessions": 0, "present": 0, "absent": 0}}
+        grades = {"math": [], "science": []}
+        dates = {}
+        student_stats = {}
+        for item in valid_records:
+            student_key = (item["name"], item["identification"], item["group"])
+            student = student_stats.setdefault(student_key, {"name": item["name"], "group": item["group"], "clei": item["clei"], "present": 0, "absent": 0, "sessions": 0})
+            day = item["date"].isoformat()
+            date_entry = dates.setdefault(day, {"label": item["date"].strftime("%d/%m/%Y"), "math_present": 0, "math_absent": 0, "science_present": 0, "science_absent": 0})
+            for prefix, attendance_value_raw, grade_raw in (("math", item["math_attendance"], item["math_grade"]), ("science", item["science_attendance"], item["science_grade"])):
+                if not (attendance_value_raw or grade_raw):
+                    continue
+                status = attendance_value(attendance_value_raw)
+                attendance[prefix]["sessions"] += 1
+                student["sessions"] += 1
+                if status == "Asistió":
+                    attendance[prefix]["present"] += 1
+                    student["present"] += 1
+                    date_entry[f"{prefix}_present"] += 1
+                elif status == "No asistió":
+                    attendance[prefix]["absent"] += 1
+                    student["absent"] += 1
+                    date_entry[f"{prefix}_absent"] += 1
+                try:
+                    grades[prefix].append(float(grade_raw.replace(",", ".")))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+        def rate(data):
+            return round(data["present"] * 100 / data["sessions"], 1) if data["sessions"] else 0
+        math_rate, science_rate = rate(attendance["math"]), rate(attendance["science"])
+        total_sessions = attendance["math"]["sessions"] + attendance["science"]["sessions"]
+        total_present = attendance["math"]["present"] + attendance["science"]["present"]
+        overall_rate = round(total_present * 100 / total_sessions, 1) if total_sessions else 0
+        risk_students = []
+        for item in student_stats.values():
+            item["rate"] = round(item["present"] * 100 / item["sessions"], 1) if item["sessions"] else 0
+            if item["sessions"] and (item["rate"] < 70 or item["absent"] > item["present"]):
+                risk_students.append(item)
+        risk_students.sort(key=lambda item: (-item["absent"], item["rate"], item["name"].lower()))
+        risk_students = risk_students[:12]
+        date_items = sorted(dates.items())
+        context_counts = {}
+        for item in classes:
+            context_counts[item["context"]] = context_counts.get(item["context"], 0) + 1
+        interpretations = []
+        if total_sessions:
+            interpretations.append(f"La asistencia global registrada es de {overall_rate}%, calculada sobre {total_sessions} sesiones de Matemáticas y Ciencias Naturales.")
+        if math_rate and science_rate:
+            better = "Matemáticas" if math_rate >= science_rate else "Ciencias Naturales"
+            difference = abs(math_rate - science_rate)
+            interpretations.append(f"El mejor comportamiento de asistencia se observa en {better}; la diferencia entre materias es de {difference:.1f} puntos porcentuales.")
+        if risk_students:
+            interpretations.append(f"Se identifican {len(risk_students)} estudiantes en seguimiento prioritario por una asistencia inferior al 70% o por tener más inasistencias que asistencias.")
+        else:
+            interpretations.append("No se identifican estudiantes en riesgo alto con los registros disponibles.")
+        if classes:
+            busiest = max(context_counts, key=context_counts.get)
+            interpretations.append(f"El contexto con mayor número de clases registradas es {busiest}, con {context_counts[busiest]} clases.")
+        if grades["math"] or grades["science"]:
+            averages = []
+            if grades["math"]: averages.append(f"Matemáticas {sum(grades['math']) / len(grades['math']):.2f}")
+            if grades["science"]: averages.append(f"Ciencias Naturales {sum(grades['science']) / len(grades['science']):.2f}")
+            interpretations.append("Promedios de calificación registrados: " + " y ".join(averages) + ".")
+        chart_data = {
+            "dates": [item[1]["label"] for item in date_items],
+            "math": [{"present": item[1]["math_present"], "absent": item[1]["math_absent"]} for item in date_items],
+            "science": [{"present": item[1]["science_present"], "absent": item[1]["science_absent"]} for item in date_items],
+            "contexts": [{"label": key, "value": value} for key, value in sorted(context_counts.items())],
+            "risks": [{"label": item["name"], "value": item["absent"]} for item in risk_students[:8]],
+        }
+        page_data.update({
+            "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len(risk_students)},
+            "chart_data": json.dumps(chart_data, ensure_ascii=False), "interpretations": interpretations, "risk_students": risk_students, "drive_updated": metadata.get("modifiedTime", ""),
+        })
+        return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudo generar seguimiento estadístico")
+        page_data["data_error"] = "No se pudo generar el análisis desde Google Drive."
+        return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
