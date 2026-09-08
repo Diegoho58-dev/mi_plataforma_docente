@@ -1,1 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Estudiantes | Panel Docente</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    .student-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-bottom:20px; }
+    .student-filters label { display:block; margin-bottom:6px; color:var(--muted); font-size:12px; font-weight:700; }
+    .student-filters input,.student-filters select { min-width:180px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; }
+    .student-filters .primary-button { width:auto; margin:0; padding:11px 18px; }
+    .student-summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+    .student-summary-card { padding:14px 18px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:var(--shadow); }
+    .student-summary-card strong { display:block; color:var(--ink); font-size:22px; }.student-summary-card span { color:var(--muted); font-size:12px; }
+    .students-table { overflow:auto; }.students-table table { width:100%; min-width:820px; border-collapse:collapse; }
+    .students-table th,.students-table td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:12px; }
+    .students-table th { background:#f7fafb; color:var(--ink); font-size:11px; }.student-name { display:block; font-weight:800; color:var(--ink); }.student-meta { display:block; margin-top:5px; color:var(--muted); font-size:10px; }.average { font-weight:800; color:var(--navy); }.notice { margin-bottom:18px; padding:13px 16px; border-radius:8px; color:#7a5a13; background:#fff8e4; }
+  </style>
+</head>
+<body><div class="app-shell">
+  <aside class="sidebar"><div class="brand"><div class="brand-mark">▰</div><div><strong>AulaCol</strong><span>Plataforma Docente</span></div></div><div class="profile"><img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente"><h2>Diego Hoyos</h2><p>Docente de Matemáticas<br>y Ciencias Naturales</p></div><nav class="menu" aria-label="Navegación principal"><a class="menu-item" href="{{ url_for('home') }}">⌂ <span>Inicio</span></a><a class="menu-item active" href="{{ url_for('estudiantes') }}">♙ <span>Estudiantes</span></a><a class="menu-item" href="{{ url_for('grupos') }}">♧ <span>Mis grupos</span></a><a class="menu-item" href="{{ url_for('home') }}#clases">▤ <span>Mis clases</span></a></nav><a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon">↪</span>Cerrar sesión</a></aside>
+  <main class="main-content"><header class="topbar"><div class="topbar-spacer"></div><span class="academic-year">Año académico 2026⌄</span></header><div class="page-content">
+    <section class="welcome-section"><p class="eyebrow">REGISTRO ACADÉMICO</p><h1>Estudiantes</h1><p class="subtitle">Búsqueda general de estudiantes, grupos y promedios por asignatura.</p></section>
+    {% if data_error %}<div class="notice">{{ data_error }}</div>{% endif %}
+    <form class="student-filters" method="get" action="{{ url_for('estudiantes') }}"><div><label for="buscar">Buscar estudiante o grupo</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Escribe un nombre..."></div><div><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Alta y Multigrado</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select></div><div><label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos</option>{% for clei in cleis %}<option value="{{ clei }}" {% if clei == clei_filter %}selected{% endif %}>{% if clei == 'Multigrado' %}Multigrado{% else %}CLEI {{ clei }}{% endif %}</option>{% endfor %}</select></div><button class="primary-button" type="submit">Buscar</button></form>
+    <div class="student-summary"><div class="student-summary-card"><strong>{{ total_students }}</strong><span>Estudiantes encontrados</span></div>{% if clei_filter %}<div class="student-summary-card"><strong>{% if clei_filter == 'Multigrado' %}Multigrado{% else %}CLEI {{ clei_filter }}{% endif %}</strong><span>Filtro CLEI activo</span></div>{% endif %}</div>
+    <section class="panel students-table"><table><thead><tr><th>Estudiante</th><th>Contexto</th><th>Fechas registradas</th><th>Promedio Matemáticas</th><th>Promedio Ciencias Naturales</th><th>Acción</th></tr></thead><tbody>{% for student in students %}<tr><td><span class="student-name">{{ student.name or 'Sin nombre' }}</span><span class="student-meta">{% if student.clei == 'Multigrado' %}Multigrado{% else %}CLEI {{ student.clei }}{% endif %} · {{ student.group }}</span></td><td>{{ student.context }}</td><td>{{ student.date_count }}</td><td>{% if student.math_average is not none %}<span class="average">{{ '%.2f'|format(student.math_average) }}</span>{% else %}—{% endif %}</td><td>{% if student.science_average is not none %}<span class="average">{{ '%.2f'|format(student.science_average) }}</span>{% else %}—{% endif %}</td><td><a class="filter" href="{{ url_for('grupos', clei=student.clei) }}">Ver detalle</a></td></tr>{% else %}<tr><td colspan="6" class="empty-state">No hay estudiantes con los filtros seleccionados.</td></tr>{% endfor %}</tbody></table></section>
+  </div></main></div></body></html>
 
