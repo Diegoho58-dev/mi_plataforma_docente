@@ -810,3 +810,41 @@ def seguimiento():
         app.logger.exception("No se pudo generar seguimiento estadístico")
         page_data["data_error"] = "No se pudo generar el análisis desde Google Drive."
         return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
+
+
+@app.route("/clases")
+@login_required
+def mis_clases():
+    page_data = {
+        "classes": [], "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
+        "subjects": [], "groups": [], "context_filter": "", "subject_filter": "", "group_filter": "", "search": "",
+        "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("clases.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_excel_from_drive()
+        all_classes = read_planning_rows(buffer)
+        context_filter = request.args.get("contexto", "").strip()
+        subject_filter = request.args.get("asignatura", "").strip()
+        group_filter = request.args.get("grupo", "").strip()
+        search = request.args.get("buscar", "").strip()
+        contexts = page_data["contexts"]
+        subjects = sorted({item["subject"] for item in all_classes if item["subject"]})
+        groups = sorted({item["group"] for item in all_classes if item["group"]})
+        if context_filter not in contexts: context_filter = ""
+        if subject_filter not in subjects: subject_filter = ""
+        if group_filter not in groups: group_filter = ""
+        needle = search.lower()
+        classes = [item for item in all_classes if
+            (not context_filter or item["context"] == context_filter) and
+            (not subject_filter or item["subject"] == subject_filter) and
+            (not group_filter or item["group"] == group_filter) and
+            (not needle or needle in f"{item['subject']} {item['theme']} {item['observations']} {item['group']}".lower())]
+        page_data.update({"classes": classes, "subjects": subjects, "groups": groups, "context_filter": context_filter, "subject_filter": subject_filter, "group_filter": group_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
+        return render_template("clases.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudieron leer las clases")
+        page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
+        return render_template("clases.html", current_user=session.get("user"), **page_data)
