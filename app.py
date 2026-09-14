@@ -29,6 +29,7 @@ PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multig
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
 CYCLE_START = date(2026, 7, 6)
 DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
+DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
 
 
 def login_required(view_function):
@@ -115,10 +116,22 @@ def get_drive_service():
     return service, file_id
 
 
-def download_excel_from_drive():
-    service, file_id = get_drive_service()
-    metadata = service.files().get(fileId=file_id, fields="id,name,modifiedTime").execute()
-    request_download = service.files().get_media(fileId=file_id)
+def download_drive_file(file_id):
+    service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not service_json:
+        raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
+    credentials = service_account.Credentials.from_service_account_info(
+        json.loads(service_json), scopes=DRIVE_SCOPES
+    )
+    service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+    metadata = service.files().get(fileId=file_id, fields="id,name,mimeType,modifiedTime").execute()
+    if metadata.get("mimeType") == "application/vnd.google-apps.spreadsheet":
+        request_download = service.files().export_media(
+            fileId=file_id,
+            mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    else:
+        request_download = service.files().get_media(fileId=file_id)
     buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(buffer, request_download)
     done = False
@@ -126,6 +139,18 @@ def download_excel_from_drive():
         _, done = downloader.next_chunk()
     buffer.seek(0)
     return buffer, metadata
+
+
+def download_excel_from_drive():
+    """Fuente base: estudiantes, asistencia y grupos. No se reemplaza."""
+    _, file_id = get_drive_service()
+    return download_drive_file(file_id)
+
+
+def download_planning_from_drive():
+    """Fuente adicional: planeación, clases, materiales y análisis de planeación."""
+    file_id = os.environ.get("PLANNING_GOOGLE_DRIVE_FILE_ID", DEFAULT_PLANNING_DRIVE_FILE_ID)
+    return download_drive_file(file_id)
 
 
 def read_planning_rows(buffer):
@@ -831,20 +856,63 @@ def mis_clases():
         group_filter = request.args.get("grupo", "").strip()
         search = request.args.get("buscar", "").strip()
         contexts = page_data["contexts"]
-        subjects = sorted({item["subject"] for item in all_classes if item["subject"]})
+        def compact(value):
+            return re.sub(r"[^a-z0-9]", "", normalize_header(value))
+        def subject_key(value):
+            normalized = compact(value)
+            if "matematic" in normalized or normalized in {"mate", "mates"}:
+                return "matematicas"
+            if "ciencianatural" in normalized or normalized in {"ciencias", "ciencia"}:
+                return "cienciasnaturales"
+            return normalized
+        subjects = sorted({
+            "Matemáticas" if subject_key(item["subject"]) == "matematicas" else
+            "Ciencias Naturales" if subject_key(item["subject"]) == "cienciasnaturales" else item["subject"]
+            for item in all_classes if item["subject"]
+        })
         groups = sorted({item["group"] for item in all_classes if item["group"]})
         if context_filter not in contexts: context_filter = ""
         if subject_filter not in subjects: subject_filter = ""
         if group_filter not in groups: group_filter = ""
-        needle = search.lower()
+        needle = compact(search)
         classes = [item for item in all_classes if
-            (not context_filter or item["context"] == context_filter) and
-            (not subject_filter or item["subject"] == subject_filter) and
-            (not group_filter or item["group"] == group_filter) and
-            (not needle or needle in f"{item['subject']} {item['theme']} {item['observations']} {item['group']}".lower())]
+            (not context_filter or compact(item["context"]) == compact(context_filter)) and
+            (not subject_filter or subject_key(item["subject"]) == subject_key(subject_filter)) and
+            (not group_filter or compact(item["group"]) == compact(group_filter)) and
+            (not needle or needle in compact(f"{item['subject']} {item['theme']} {item['observations']} {item['group']}"))]
         page_data.update({"classes": classes, "subjects": subjects, "groups": groups, "context_filter": context_filter, "subject_filter": subject_filter, "group_filter": group_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
         return render_template("clases.html", current_user=session.get("user"), **page_data)
     except Exception:
         app.logger.exception("No se pudieron leer las clases")
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("clases.html", current_user=session.get("user"), **page_data)
+
+
+@app.route("/planeacion")
+@login_required
+def planeacion():
+    page_data = {
+        "planning": [],
+        "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
+        "context_filter": "", "search": "", "data_error": None,
+    }
+    if not DRIVE_ENABLED:
+        page_data["data_error"] = "La conexión con Google Drive está pausada."
+        return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+    try:
+        buffer, metadata = download_planning_from_drive()
+        planning = read_planning_rows(buffer)
+        context_filter = request.args.get("contexto", "").strip()
+        search = request.args.get("buscar", "").strip()
+        if context_filter not in page_data["contexts"]:
+            context_filter = ""
+        needle = normalize_header(search)
+        visible = [item for item in planning if
+            (not context_filter or item["context"] == context_filter) and
+            (not needle or needle in normalize_header(f"{item['group']} {item['subject']} {item['theme']} {item['observations']}"))]
+        page_data.update({"planning": visible, "context_filter": context_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
+        return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+    except Exception:
+        app.logger.exception("No se pudo leer la planeación adicional")
+        page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
+        return render_template("planeacion.html", current_user=session.get("user"), **page_data)
