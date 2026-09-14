@@ -217,6 +217,47 @@ def read_planning_rows(buffer):
     return classes
 
 
+def read_additional_planning_rows(buffer):
+    """Lee la hoja adicional con pestañas de materia y filas por semana/CLEI."""
+    from openpyxl import load_workbook
+    buffer.seek(0)
+    workbook = load_workbook(buffer, data_only=True, read_only=True)
+    planning = []
+    months = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12}
+    for worksheet in workbook.worksheets:
+        sheet_name = clean_text(worksheet.title)
+        subject_key = normalize_header(sheet_name)
+        if subject_key not in {"matematicas", "biologia", "ciencias naturales", "cienciasnaturales"}:
+            continue
+        subject = "Matemáticas" if subject_key == "matematicas" else ("Biología" if subject_key == "biologia" else "Ciencias Naturales")
+        current_week = ""
+        current_range = ""
+        for row in worksheet.iter_rows(values_only=True):
+            values = list(row)
+            cells = [clean_text(value) for value in values]
+            if len(cells) > 1 and re.match(r"^semana\s+\d+", cells[1], re.IGNORECASE):
+                current_week = cells[1]
+                current_range = cells[2] if len(cells) > 2 else ""
+                continue
+            # Formato real: columna D = CLEI, E = tema, G = objetivo, H = actividad, I = estado.
+            group = cells[3] if len(cells) > 3 else ""
+            theme = cells[4] if len(cells) > 4 else ""
+            objective = cells[6] if len(cells) > 6 else ""
+            activity = cells[7] if len(cells) > 7 else ""
+            status = cells[8] if len(cells) > 8 else ""
+            if not group or not group.lower().startswith("clei") or theme.upper() == "N/A":
+                continue
+            observations = " | ".join(item for item in (objective, activity, status) if item and item.upper() != "N/A")
+            planning.append({
+                "date": date(2026, 1, 1), "date_label": current_range or "Fecha por definir",
+                "context": "Alta", "context_class": "alta", "group": group,
+                "subject": subject, "theme": theme or "Sin tema registrado", "observations": observations,
+                "week": current_week, "cycle": None, "cycle_week": None,
+                "no_class": False, "novelty": "", "drive_link": "", "source": sheet_name,
+            })
+    return planning
+
+
 def normalize_header(value):
     text = clean_text(value).lower()
     return "".join(
@@ -901,7 +942,7 @@ def planeacion():
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
     try:
         buffer, metadata = download_planning_from_drive()
-        planning = read_planning_rows(buffer)
+        planning = read_additional_planning_rows(buffer)
         context_filter = request.args.get("contexto", "").strip()
         search = request.args.get("buscar", "").strip()
         if context_filter not in page_data["contexts"]:
