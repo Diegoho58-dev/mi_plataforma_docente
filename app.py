@@ -387,6 +387,26 @@ def available_contexts(records=None):
     return CONTEXT_OPTIONS.copy()
 
 
+def is_probable_student_record(name, identification, clei):
+    """Descarta filas de temas/actividades que algunas hojas mezclan con notas."""
+    normalized_name = normalize_header(name)
+    academic_markers = (
+        "repaso", "unidad", "problemas", "numeros", "medida", "medidas",
+        "funciones", "polinomios", "operaciones", "actividad", "tema", "estandar",
+        "competencia", "volumen", "perimetro", "fracciones", "ecuaciones",
+        "biodiversidad", "celula", "seres vivos", "universo",
+    )
+    if any(marker in normalized_name for marker in academic_markers):
+        return False
+    if len(name.split()) > 5 or len(name) > 55:
+        return False
+    normalized_clei = normalize_header(clei).replace(" ", "")
+    valid_clei = {"2", "3", "3a", "3b", "4", "5", "6", "5-6", "multigrado", "comunidadterapeutica"}
+    if normalized_clei and normalized_clei not in valid_clei:
+        return False
+    return bool(name or identification)
+
+
 def find_column(headers, aliases, fallback=None):
     aliases = [normalize_header(alias) for alias in aliases]
     for index, header in enumerate(headers):
@@ -432,7 +452,7 @@ def read_student_records(buffer):
                 continue
             # Algunas pestañas de notas incluyen filas-resumen o filas de
             # asignatura dentro de la tabla; no son estudiantes.
-            if normalize_header(name) in {"matematicas", "biologia", "ciencias naturales", "cienciasnaturales", "tema", "total", "promedio"}:
+            if not is_probable_student_record(name, identification, clean_text(get(clei_col))):
                 continue
             clei_label = {
                 "clei 2": "2", "clei 3a": "3A", "clei3b": "3B",
