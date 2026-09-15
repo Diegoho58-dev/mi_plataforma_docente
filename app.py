@@ -370,15 +370,17 @@ def normalize_header(value):
 
 
 def is_student_sheet(normalized_sheet):
-    """Acepta pestañas base conocidas y variantes nuevas de Comunidad Terapéutica."""
-    if "control" in normalized_sheet or "clase" in normalized_sheet and COMMUNITY_SHEET_MARKER in normalized_sheet:
+    """Acepta únicamente hojas de notas/asistencia, nunca hojas de control."""
+    if "control" in normalized_sheet or "clase" in normalized_sheet:
         return False
-    return normalized_sheet in STUDENT_SHEETS or COMMUNITY_SHEET_MARKER in normalized_sheet or COMMUNITY_NOTES_SHEET_MARKER in normalized_sheet
+    if normalized_sheet.startswith(COMMUNITY_NOTES_SHEET_MARKER):
+        return True
+    return normalized_sheet in STUDENT_SHEETS
 
 
 def sheet_context(normalized_sheet, group=""):
     text = f"{normalized_sheet} {normalize_header(group)}"
-    if COMMUNITY_SHEET_MARKER in text or COMMUNITY_NOTES_SHEET_MARKER in text:
+    if COMMUNITY_NOTES_SHEET_MARKER in text:
         return "Comunidad Terapéutica"
     if normalized_sheet == "mult. asistencia" or "multigrado" in text:
         return "Multigrado"
