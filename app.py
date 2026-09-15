@@ -424,6 +424,10 @@ def read_student_records(buffer):
             group = clean_text(get(group_col)) or sheet_name
             if not name and not identification:
                 continue
+            # Algunas pestañas de notas incluyen filas-resumen o filas de
+            # asignatura dentro de la tabla; no son estudiantes.
+            if normalize_header(name) in {"matematicas", "biologia", "ciencias naturales", "cienciasnaturales", "tema", "total", "promedio"}:
+                continue
             clei_label = {
                 "clei 2": "2", "clei 3a": "3A", "clei3b": "3B",
                 "clei 4": "4", "clei 5-6": "5-6", "mult. asistencia": "Multigrado",
@@ -445,10 +449,11 @@ def read_student_records(buffer):
     return records
 
 
-def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter=""):
+def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter="", context_filter=""):
     filtered = [
         item for item in records
         if (not clei_filter or item["clei"] == clei_filter)
+        and (not context_filter or item["context"] == context_filter)
         and (not cycle_filter or (cycle_for_date(item["date"]) and cycle_for_date(item["date"])["cycle"] == int(cycle_filter)))
         and (not week_filter or (cycle_for_date(item["date"]) and cycle_for_date(item["date"])["week"] == int(week_filter)))
     ]
@@ -571,6 +576,7 @@ def home():
 @app.route("/grupos")
 @login_required
 def grupos():
+    context_filter = request.args.get("contexto", "").strip()
     if not DRIVE_ENABLED:
         return render_template(
             "grupos.html",
@@ -596,13 +602,16 @@ def grupos():
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
         cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
         weeks = [1, 2, 3]
+        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
+        if context_filter not in contexts:
+            context_filter = ""
         if clei_filter not in cleis:
             clei_filter = ""
         if cycle_filter not in {str(value) for value in cycles}:
             cycle_filter = ""
         if week_filter not in {str(value) for value in weeks}:
             week_filter = ""
-        matrix, dates = build_student_matrix(records, clei_filter, cycle_filter, week_filter)
+        matrix, dates = build_student_matrix(records, clei_filter, cycle_filter, week_filter, context_filter)
         return render_template(
             "grupos.html",
             current_user=session.get("user"),
@@ -610,6 +619,8 @@ def grupos():
             dates=dates,
             cleis=cleis,
             clei_filter=clei_filter,
+            contexts=contexts,
+            context_filter=context_filter,
             cycles=cycles,
             weeks=weeks,
             cycle_filter=cycle_filter,
