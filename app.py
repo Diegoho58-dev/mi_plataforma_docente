@@ -29,6 +29,7 @@ DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis
 PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multigrado"}
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
 COMMUNITY_SHEET_MARKER = "comunidad terapeutica"
+COMMUNITY_NOTES_SHEET_MARKER = "notas com ter"
 CONTEXT_OPTIONS = ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"]
 CYCLE_START = date(2026, 7, 6)
 DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
@@ -372,12 +373,12 @@ def is_student_sheet(normalized_sheet):
     """Acepta pestañas base conocidas y variantes nuevas de Comunidad Terapéutica."""
     if "control" in normalized_sheet or "clase" in normalized_sheet and COMMUNITY_SHEET_MARKER in normalized_sheet:
         return False
-    return normalized_sheet in STUDENT_SHEETS or COMMUNITY_SHEET_MARKER in normalized_sheet
+    return normalized_sheet in STUDENT_SHEETS or COMMUNITY_SHEET_MARKER in normalized_sheet or COMMUNITY_NOTES_SHEET_MARKER in normalized_sheet
 
 
 def sheet_context(normalized_sheet, group=""):
     text = f"{normalized_sheet} {normalize_header(group)}"
-    if COMMUNITY_SHEET_MARKER in text:
+    if COMMUNITY_SHEET_MARKER in text or COMMUNITY_NOTES_SHEET_MARKER in text:
         return "Comunidad Terapéutica"
     if normalized_sheet == "mult. asistencia" or "multigrado" in text:
         return "Multigrado"
@@ -1163,3 +1164,4 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+
