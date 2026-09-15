@@ -98,7 +98,7 @@ def is_no_class(theme, observations):
 
 
 def classify_context(sheet_name, group):
-    text = f"{sheet_name} {group}".lower()
+    text = normalize_header(f"{sheet_name} {group}")
     if "tecnico laboral" in text:
         return "Técnico Laboral"
     if "comunidad terapeutica" in text:
@@ -220,7 +220,7 @@ def read_planning_rows(buffer):
     classes = []
     for worksheet in workbook.worksheets:
         sheet_name = clean_text(worksheet.title)
-        normalized_sheet = sheet_name.lower()
+        normalized_sheet = normalize_header(sheet_name)
         if normalized_sheet not in PLANNING_SHEETS:
             continue
         rows = list(worksheet.iter_rows(values_only=True))
@@ -683,7 +683,7 @@ def estudiantes():
     page_data = {
         "students": [],
         "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
-        "contexts": ["Alta", "Multigrado"],
+        "contexts": ["Alta", "Multigrado", "Comunidad Terapéutica"],
         "clei_filter": "",
         "context_filter": "",
         "search": "",
@@ -700,7 +700,7 @@ def estudiantes():
         clei_filter = request.args.get("clei", "").strip()
         context_filter = request.args.get("contexto", "").strip()
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
-        contexts = ["Alta", "Multigrado"]
+        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
         if clei_filter not in cleis:
             clei_filter = ""
         if context_filter not in contexts:
@@ -758,7 +758,7 @@ def attendance_value(value):
 @login_required
 def asistencia():
     page_data = {
-        "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
+        "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"], "contexts": ["Alta", "Multigrado", "Comunidad Terapéutica"], "context_filter": "",
         "cycles": [], "weeks": [1, 2, 3],
         "clei_filter": [], "cycle_filter": [], "week_filter": [],
         "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
@@ -774,6 +774,7 @@ def asistencia():
         clei_filter = request.args.getlist("clei")
         cycle_filter = request.args.getlist("ciclo")
         week_filter = request.args.getlist("semana")
+        context_filter = request.args.get("contexto", "").strip()
         start_date_text = request.args.get("desde", "").strip()
         end_date_text = request.args.get("hasta", "").strip()
         try:
@@ -790,6 +791,9 @@ def asistencia():
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
         cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
         weeks = [1, 2, 3]
+        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
+        if context_filter not in contexts:
+            context_filter = ""
         clei_filter = [value for value in clei_filter if value in cleis]
         cycle_filter = [value for value in cycle_filter if value in {str(item) for item in cycles}]
         week_filter = [value for value in week_filter if value in {str(item) for item in weeks}]
@@ -799,6 +803,8 @@ def asistencia():
         for item in records:
             cycle = cycle_for_date(item["date"])
             if clei_filter and item["clei"] not in clei_filter:
+                continue
+            if context_filter and item["context"] != context_filter:
                 continue
             if cycle_filter and (not cycle or str(cycle["cycle"]) not in cycle_filter):
                 continue
@@ -860,7 +866,7 @@ def asistencia():
             attendance_stats.append(summary)
         attendance_stats.sort(key=lambda item: (not item["never_attended"], -item["total_absent"], item["total_present"], item["name"].lower()))
         page_data.update({
-            "rows": rows, "cleis": cleis, "cycles": cycles, "weeks": weeks,
+            "rows": rows, "cleis": cleis, "contexts": contexts, "context_filter": context_filter, "cycles": cycles, "weeks": weeks,
             "clei_filter": clei_filter, "cycle_filter": cycle_filter, "week_filter": week_filter,
             "start_date": start_date_text, "end_date": end_date_text,
             "total_present": sum(row["math_status"] == "Asistió" for row in rows) + sum(row["science_status"] == "Asistió" for row in rows),
@@ -1125,4 +1131,3 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
-
