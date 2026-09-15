@@ -370,6 +370,8 @@ def normalize_header(value):
 
 def is_student_sheet(normalized_sheet):
     """Acepta pestañas base conocidas y variantes nuevas de Comunidad Terapéutica."""
+    if "control" in normalized_sheet or "clase" in normalized_sheet and COMMUNITY_SHEET_MARKER in normalized_sheet:
+        return False
     return normalized_sheet in STUDENT_SHEETS or COMMUNITY_SHEET_MARKER in normalized_sheet
 
 
@@ -396,6 +398,13 @@ def find_column(headers, aliases, fallback=None):
     return fallback
 
 
+def is_attendance_grades_sheet(headers):
+    """Distingue la hoja de notas/asistencia de una hoja de control de clase."""
+    normalized = [normalize_header(value) for value in headers if clean_text(value)]
+    markers = ("asistencia", "asistio", "nota", "calificacion", "promedio", "observacion")
+    return any(any(marker in header for marker in markers) for header in normalized)
+
+
 def read_student_records(buffer):
     from openpyxl import load_workbook
 
@@ -409,6 +418,8 @@ def read_student_records(buffer):
             continue
         rows = worksheet.iter_rows(values_only=True)
         header = list(next(rows, ()))
+        if not is_attendance_grades_sheet(header):
+            continue
         # The old fixed positions remain fallbacks, but headers take priority.
         date_col = find_column(header, ["fecha"], 0)
         name_col = find_column(header, ["nombre", "estudiante", "alumno"], 2)
