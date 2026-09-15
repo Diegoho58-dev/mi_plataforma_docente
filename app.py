@@ -238,24 +238,41 @@ def read_additional_planning_rows(buffer):
             if len(cells) > 1 and re.match(r"^semana\s+\d+", cells[1], re.IGNORECASE):
                 current_week = cells[1]
                 current_range = cells[2] if len(cells) > 2 else ""
-                continue
             # Formato real: columna D = CLEI, E = tema, G = objetivo, H = actividad, I = estado.
             group = cells[3] if len(cells) > 3 else ""
             theme = cells[4] if len(cells) > 4 else ""
             objective = cells[6] if len(cells) > 6 else ""
             activity = cells[7] if len(cells) > 7 else ""
             status = cells[8] if len(cells) > 8 else ""
-            if not group or not group.lower().startswith("clei") or theme.upper() == "N/A":
+            group = normalize_planning_clei(group)
+            if not group or not theme:
                 continue
             observations = " | ".join(item for item in (objective, activity, status) if item and item.upper() != "N/A")
             planning.append({
                 "date": date(2026, 1, 1), "date_label": current_range or "Fecha por definir",
                 "context": "Alta", "context_class": "alta", "group": group,
                 "subject": subject, "theme": theme or "Sin tema registrado", "observations": observations,
-                "week": current_week, "cycle": None, "cycle_week": None,
+                "week": current_week, "week_number": int(re.search(r"\d+", current_week).group()) if re.search(r"\d+", current_week) else 999, "cycle": None, "cycle_week": None,
                 "no_class": False, "novelty": "", "drive_link": "", "source": sheet_name,
             })
+    clei_order = {"CLEI 1": 1, "CLEI 2": 2, "CLEI 3": 3, "CLEI 4": 4, "CLEI 5-6": 5}
+    planning.sort(key=lambda item: (item["week_number"], clei_order.get(item["group"], 99), item["subject"]))
     return planning
+
+
+def normalize_planning_clei(value):
+    text = clean_text(value).upper().replace("-", " ")
+    match = re.search(r"CLEI\s*([IVX]+|[1-6])", text)
+    if not match:
+        return ""
+    raw = match.group(1)
+    roman_values = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6}
+    number = roman_values[raw] if raw in roman_values else (int(raw) if raw.isdigit() else None)
+    if number is None:
+        return ""
+    if number in {5, 6}:
+        return "CLEI 5-6"
+    return f"CLEI {number}"
 
 
 def normalize_header(value):
@@ -957,3 +974,4 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+
