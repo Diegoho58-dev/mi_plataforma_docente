@@ -1002,7 +1002,9 @@ def planeacion():
             (not needle or needle in normalize_header(f"{item['group']} {item['subject']} {item['theme']}"))]
         weekly = []
         for item in visible:
-            week_key = (item.get("week_number", 999), item.get("week", ""), item.get("date_label", ""))
+            # Una semana debe ser una sola fila aunque cada pestaña escriba
+            # el rango de fechas con espacios o formato ligeramente distinto.
+            week_key = (item.get("week_number", 999), normalize_header(item.get("week", "")))
             if not weekly or weekly[-1]["key"] != week_key:
                 weekly.append({"key": week_key, "week": item.get("week", "Semana sin número"), "date_range": item.get("date_label", "Fecha por definir"), "items": [], "cells": {clei: [] for clei in page_data["cleis"]}})
             weekly[-1]["items"].append(item)
