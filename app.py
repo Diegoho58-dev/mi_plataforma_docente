@@ -708,10 +708,6 @@ def actualizar_planeacion():
         return render_template("actualizar_planeacion.html", current_user=session.get("user"), **page)
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
-
 @app.route("/estudiantes")
 @login_required
 def estudiantes():
@@ -1167,3 +1163,6 @@ def planeacion():
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
 
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
