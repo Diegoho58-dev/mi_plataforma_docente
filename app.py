@@ -1166,4 +1166,3 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
-
