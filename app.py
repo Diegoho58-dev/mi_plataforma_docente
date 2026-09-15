@@ -29,6 +29,7 @@ DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis
 PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multigrado"}
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
 COMMUNITY_SHEET_MARKER = "comunidad terapeutica"
+CONTEXT_OPTIONS = ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"]
 CYCLE_START = date(2026, 7, 6)
 DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
@@ -381,6 +382,11 @@ def sheet_context(normalized_sheet, group=""):
     return "Alta"
 
 
+def available_contexts(records=None):
+    """Catálogo estable: los filtros deben aparecer aunque una fuente no tenga filas."""
+    return CONTEXT_OPTIONS.copy()
+
+
 def find_column(headers, aliases, fallback=None):
     aliases = [normalize_header(alias) for alias in aliases]
     for index, header in enumerate(headers):
@@ -585,6 +591,8 @@ def grupos():
             dates=[],
             cleis=["2", "3A", "3B", "4", "5-6", "Multigrado"],
             clei_filter="",
+            contexts=CONTEXT_OPTIONS.copy(),
+            context_filter=context_filter,
             cycles=[],
             weeks=[1, 2, 3],
             cycle_filter="",
@@ -602,7 +610,7 @@ def grupos():
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
         cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
         weeks = [1, 2, 3]
-        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
+        contexts = available_contexts(records)
         if context_filter not in contexts:
             context_filter = ""
         if clei_filter not in cleis:
@@ -638,6 +646,8 @@ def grupos():
             dates=[],
             cleis=[],
             clei_filter="",
+            contexts=CONTEXT_OPTIONS.copy(),
+            context_filter=context_filter,
             cycles=[],
             weeks=[1, 2, 3],
             cycle_filter="",
@@ -694,7 +704,7 @@ def estudiantes():
     page_data = {
         "students": [],
         "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"],
-        "contexts": ["Alta", "Multigrado", "Comunidad Terapéutica"],
+        "contexts": CONTEXT_OPTIONS.copy(),
         "clei_filter": "",
         "context_filter": "",
         "search": "",
@@ -711,7 +721,7 @@ def estudiantes():
         clei_filter = request.args.get("clei", "").strip()
         context_filter = request.args.get("contexto", "").strip()
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
-        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
+        contexts = available_contexts(records)
         if clei_filter not in cleis:
             clei_filter = ""
         if context_filter not in contexts:
@@ -769,7 +779,7 @@ def attendance_value(value):
 @login_required
 def asistencia():
     page_data = {
-        "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"], "contexts": ["Alta", "Multigrado", "Comunidad Terapéutica"], "context_filter": "",
+        "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"], "contexts": CONTEXT_OPTIONS.copy(), "context_filter": "",
         "cycles": [], "weeks": [1, 2, 3],
         "clei_filter": [], "cycle_filter": [], "week_filter": [],
         "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
@@ -802,7 +812,7 @@ def asistencia():
         cleis = ["2", "3A", "3B", "4", "5-6", "Multigrado"]
         cycles = sorted({cycle_for_date(item["date"])["cycle"] for item in records if cycle_for_date(item["date"])})
         weeks = [1, 2, 3]
-        contexts = sorted({item["context"] for item in records if item.get("context")}, key=lambda value: ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"].index(value) if value in ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"] else 99)
+        contexts = available_contexts(records)
         if context_filter not in contexts:
             context_filter = ""
         clei_filter = [value for value in clei_filter if value in cleis]
@@ -915,7 +925,7 @@ def materiales():
         context_filter = request.args.get("contexto", "").strip()
         group_filter = request.args.get("grupo", "").strip()
         search = request.args.get("buscar", "").strip()
-        contexts = page_data["contexts"]
+        contexts = CONTEXT_OPTIONS.copy()
         if context_filter not in contexts:
             context_filter = ""
         groups = sorted({item["group"] for item in classes if item["group"]})
@@ -1064,7 +1074,7 @@ def mis_clases():
         subject_filter = request.args.get("asignatura", "").strip()
         group_filter = request.args.get("grupo", "").strip()
         search = request.args.get("buscar", "").strip()
-        contexts = page_data["contexts"]
+        contexts = CONTEXT_OPTIONS.copy()
         def compact(value):
             return re.sub(r"[^a-z0-9]", "", normalize_header(value))
         def subject_key(value):
@@ -1142,4 +1152,3 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
-
