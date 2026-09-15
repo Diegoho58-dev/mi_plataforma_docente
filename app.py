@@ -247,6 +247,8 @@ def read_additional_planning_rows(buffer):
             group = normalize_planning_clei(group)
             if not group or not theme:
                 continue
+            if theme.upper() == "N/A":
+                theme = "Sin planeación registrada"
             observations = " | ".join(item for item in (objective, activity, status) if item and item.upper() != "N/A")
             planning.append({
                 "date": date(2026, 1, 1), "date_label": current_range or "Fecha por definir",
@@ -266,7 +268,9 @@ def read_additional_planning_rows(buffer):
         if item["group"] != "CLEI 5-6":
             consolidated.append(item)
             continue
-        key = (item["week_number"], normalize_header(item["subject"]), normalize_header(item["theme"]))
+        # V y VI representan el mismo CLEI: una sola tarjeta por semana y materia,
+        # incluso si una de las dos filas tiene una variación menor en el texto.
+        key = (item["week_number"], normalize_header(item["subject"]))
         previous_index = seen.get(key)
         if previous_index is None:
             seen[key] = len(consolidated)
