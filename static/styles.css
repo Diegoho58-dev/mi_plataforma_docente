@@ -1,0 +1,121 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Verdana, sans-serif;
+  background-color: #f4f6f9;
+  color: #333;
+  display: flex;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  min-height: 100vh;
+  padding: 20px;
+  position: fixed;
+}
+
+.sidebar .profile {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.sidebar .profile img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  margin-bottom: 10px;
+}
+
+.sidebar h3 {
+  margin: 5px 0;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.sidebar p {
+  font-size: 0.85rem;
+  color: #bdc3c7;
+}
+
+.sidebar .menu {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar .menu li {
+  margin: 12px 0;
+}
+
+.sidebar .menu li a {
+  text-decoration: none;
+  color: #ecf0f1;
+  font-weight: 500;
+  display: block;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.3s ease, padding-left 0.3s ease;
+}
+
+.sidebar .menu li a:hover {
+  background-color: #1abc9c;
+  padding-left: 12px;
+}
+
+/* Content */
+.content {
+  margin-left: 280px;
+  padding: 30px;
+  flex: 1;
+}
+
+.content h1 {
+  margin-top: 0;
+  color: #2c3e50;
+  border-bottom: 3px solid #1abc9c;
+  padding-bottom: 10px;
+  font-size: 1.6rem;
+}
+
+/* Cards */
+.card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.card h2 {
+  margin-top: 0;
+  color: #2c3e50;
+  font-size: 1.3rem;
+  border-bottom: 2px solid #1abc9c;
+  padding-bottom: 8px;
+}
+
+/* Tables */
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.card table th, .card table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+}
+
+.card table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.card table th {
+  background-color: #34495e;
+  color: #ecf0f1;
+  font-weight: 600;
+}
