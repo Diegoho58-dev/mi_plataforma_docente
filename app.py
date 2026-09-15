@@ -950,9 +950,9 @@ def mis_clases():
 @login_required
 def planeacion():
     page_data = {
-        "planning": [],
-        "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
-        "context_filter": "", "search": "", "data_error": None,
+        "planning": [], "weekly_groups": [],
+        "cleis": ["CLEI 1", "CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
+        "subjects": [], "clei_filter": "", "subject_filter": "", "search": "", "data_error": None,
     }
     if not DRIVE_ENABLED:
         page_data["data_error"] = "La conexión con Google Drive está pausada."
@@ -960,18 +960,26 @@ def planeacion():
     try:
         buffer, metadata = download_planning_from_drive()
         planning = read_additional_planning_rows(buffer)
-        context_filter = request.args.get("contexto", "").strip()
+        clei_filter = request.args.get("clei", "").strip()
+        subject_filter = request.args.get("materia", "").strip()
         search = request.args.get("buscar", "").strip()
-        if context_filter not in page_data["contexts"]:
-            context_filter = ""
+        subjects = sorted({item["subject"] for item in planning})
+        if clei_filter not in page_data["cleis"]: clei_filter = ""
+        if subject_filter not in subjects: subject_filter = ""
         needle = normalize_header(search)
         visible = [item for item in planning if
-            (not context_filter or item["context"] == context_filter) and
-            (not needle or needle in normalize_header(f"{item['group']} {item['subject']} {item['theme']} {item['observations']}"))]
-        page_data.update({"planning": visible, "context_filter": context_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
+            (not clei_filter or item["group"] == clei_filter) and
+            (not subject_filter or item["subject"] == subject_filter) and
+            (not needle or needle in normalize_header(f"{item['group']} {item['subject']} {item['theme']}"))]
+        weekly = []
+        for item in visible:
+            week_key = (item.get("week_number", 999), item.get("week", ""), item.get("date_label", ""))
+            if not weekly or weekly[-1]["key"] != week_key:
+                weekly.append({"key": week_key, "week": item.get("week", "Semana sin número"), "date_range": item.get("date_label", "Fecha por definir"), "items": []})
+            weekly[-1]["items"].append(item)
+        page_data.update({"planning": visible, "weekly_groups": weekly, "subjects": subjects, "clei_filter": clei_filter, "subject_filter": subject_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
     except Exception:
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
-
