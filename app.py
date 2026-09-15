@@ -258,7 +258,27 @@ def read_additional_planning_rows(buffer):
             })
     clei_order = {"CLEI 1": 1, "CLEI 2": 2, "CLEI 3": 3, "CLEI 4": 4, "CLEI 5-6": 5}
     planning.sort(key=lambda item: (item["week_number"], clei_order.get(item["group"], 99), item["subject"]))
-    return planning
+    # CLEI V y CLEI VI comparten la misma planeación. Al normalizarlos a CLEI 5-6,
+    # consolidamos duplicados para mostrar una sola tarjeta por semana y materia.
+    consolidated = []
+    seen = {}
+    for item in planning:
+        if item["group"] != "CLEI 5-6":
+            consolidated.append(item)
+            continue
+        key = (item["week_number"], normalize_header(item["subject"]), normalize_header(item["theme"]))
+        previous_index = seen.get(key)
+        if previous_index is None:
+            seen[key] = len(consolidated)
+            consolidated.append(item)
+        else:
+            previous = consolidated[previous_index]
+            # Conserva el registro con más información, sin duplicar la tarjeta.
+            current_score = len(item.get("objective", "")) + len(item.get("activity", ""))
+            previous_score = len(previous.get("objective", "")) + len(previous.get("activity", ""))
+            if current_score > previous_score:
+                consolidated[previous_index] = item
+    return consolidated
 
 
 def normalize_planning_clei(value):
