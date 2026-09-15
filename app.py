@@ -252,6 +252,7 @@ def read_additional_planning_rows(buffer):
                 "date": date(2026, 1, 1), "date_label": current_range or "Fecha por definir",
                 "context": "Alta", "context_class": "alta", "group": group,
                 "subject": subject, "theme": theme or "Sin tema registrado", "observations": observations,
+                "objective": objective or "No registrado", "activity": activity or "No registrada", "status": status or "Sin estado",
                 "week": current_week, "week_number": int(re.search(r"\d+", current_week).group()) if re.search(r"\d+", current_week) else 999, "cycle": None, "cycle_week": None,
                 "no_class": False, "novelty": "", "drive_link": "", "source": sheet_name,
             })
@@ -952,7 +953,7 @@ def planeacion():
     page_data = {
         "planning": [], "weekly_groups": [],
         "cleis": ["CLEI 1", "CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
-        "subjects": [], "clei_filter": "", "subject_filter": "", "search": "", "data_error": None,
+        "subjects": [], "weeks": [], "clei_filter": "", "subject_filter": "", "week_filter": "", "search": "", "data_error": None,
     }
     if not DRIVE_ENABLED:
         page_data["data_error"] = "La conexión con Google Drive está pausada."
@@ -962,14 +963,18 @@ def planeacion():
         planning = read_additional_planning_rows(buffer)
         clei_filter = request.args.get("clei", "").strip()
         subject_filter = request.args.get("materia", "").strip()
+        week_filter = request.args.get("semana", "").strip()
         search = request.args.get("buscar", "").strip()
         subjects = sorted({item["subject"] for item in planning})
+        weeks = sorted({item.get("week", "") for item in planning if item.get("week")}, key=lambda value: int(re.search(r"\d+", value).group()) if re.search(r"\d+", value) else 999)
         if clei_filter not in page_data["cleis"]: clei_filter = ""
         if subject_filter not in subjects: subject_filter = ""
+        if week_filter not in weeks: week_filter = ""
         needle = normalize_header(search)
         visible = [item for item in planning if
             (not clei_filter or item["group"] == clei_filter) and
             (not subject_filter or item["subject"] == subject_filter) and
+            (not week_filter or item.get("week") == week_filter) and
             (not needle or needle in normalize_header(f"{item['group']} {item['subject']} {item['theme']}"))]
         weekly = []
         for item in visible:
@@ -979,7 +984,7 @@ def planeacion():
             weekly[-1]["items"].append(item)
             if item.get("group") in weekly[-1]["cells"]:
                 weekly[-1]["cells"][item["group"]].append(item)
-        page_data.update({"planning": visible, "weekly_groups": weekly, "subjects": subjects, "clei_filter": clei_filter, "subject_filter": subject_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
+        page_data.update({"planning": visible, "weekly_groups": weekly, "subjects": subjects, "weeks": weeks, "clei_filter": clei_filter, "subject_filter": subject_filter, "week_filter": week_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
     except Exception:
         app.logger.exception("No se pudo leer la planeación adicional")
