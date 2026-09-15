@@ -975,8 +975,10 @@ def planeacion():
         for item in visible:
             week_key = (item.get("week_number", 999), item.get("week", ""), item.get("date_label", ""))
             if not weekly or weekly[-1]["key"] != week_key:
-                weekly.append({"key": week_key, "week": item.get("week", "Semana sin número"), "date_range": item.get("date_label", "Fecha por definir"), "items": []})
+                weekly.append({"key": week_key, "week": item.get("week", "Semana sin número"), "date_range": item.get("date_label", "Fecha por definir"), "items": [], "cells": {clei: [] for clei in page_data["cleis"]}})
             weekly[-1]["items"].append(item)
+            if item.get("group") in weekly[-1]["cells"]:
+                weekly[-1]["cells"][item["group"]].append(item)
         page_data.update({"planning": visible, "weekly_groups": weekly, "subjects": subjects, "clei_filter": clei_filter, "subject_filter": subject_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
     except Exception:
