@@ -3,7 +3,8 @@ import json
 import os
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from functools import wraps
 
 from flask import Flask, redirect, render_template, request, session, url_for
@@ -24,9 +25,10 @@ if not ADMIN_USER or not ADMIN_PASSWORD:
 
 app.config["SECRET_KEY"] = SECRET_KEY
 
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
 PLANNING_SHEETS = {"tecnico laboral", "comunidad terapeutica", "maxima", "multigrado"}
 STUDENT_SHEETS = {"clei 2", "clei 3a", "clei3b", "clei 4", "clei 5-6", "mult. asistencia"}
+COMMUNITY_SHEET_MARKER = "comunidad terapeutica"
 CYCLE_START = date(2026, 7, 6)
 DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
@@ -139,6 +141,63 @@ def download_drive_file(file_id):
         _, done = downloader.next_chunk()
     buffer.seek(0)
     return buffer, metadata
+
+
+def colombia_today():
+    return datetime.now(ZoneInfo("America/Bogota")).date()
+
+
+def get_sheets_service():
+    file_id = os.environ.get("PLANNING_GOOGLE_DRIVE_FILE_ID", DEFAULT_PLANNING_DRIVE_FILE_ID)
+    service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not service_json:
+        raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
+    credentials = service_account.Credentials.from_service_account_info(json.loads(service_json), scopes=DRIVE_SCOPES)
+    return build("sheets", "v4", credentials=credentials, cache_discovery=False), file_id
+
+
+def planning_update_options():
+    return [(subject, clei) for subject in ("Matemáticas", "Biología") for clei in ("CLEI 1", "CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6")]
+
+
+def next_week_number(rows):
+    numbers = [r.get("week_number", 0) for r in rows if r.get("week_number")]
+    return (max(numbers) + 1) if numbers else 1
+
+
+def build_weekly_proposal(rows, selected):
+    current = next_week_number(rows)
+    previous = {}
+    for row in rows:
+        key=(row["subject"], row["group"])
+        if row.get("week_number", 0) == current - 1:
+            previous[key]=row
+    proposal=[]
+    for subject, clei in selected:
+        prior=previous.get((subject, clei))
+        if not prior:
+            continue
+        proposal.append({
+            "subject": subject, "group": clei, "week": f"Semana {current}",
+            "date_label": "Por programar", "theme": prior["theme"],
+            "objective": prior.get("objective", "No registrado"), "activity": prior.get("activity", "No registrada"),
+            "status": "PENDIENTE DE VALIDACIÓN", "source": subject,
+        })
+    return current, proposal
+
+
+def append_planning_rows(rows):
+    service, file_id = get_sheets_service()
+    by_subject = {"Matemáticas": "Matemáticas", "Biología": "Biología"}
+    written=[]
+    for row in rows:
+        sheet = by_subject[row["subject"]]
+        values=[["", row["week"], row["date_label"], row["group"], row["theme"], "", row["objective"], row["activity"], row["status"]]]
+        service.spreadsheets().values().append(
+            spreadsheetId=file_id, range=f"'{sheet}'!A:I", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": values}
+        ).execute()
+        written.append(f"{sheet} / {row['group']}")
+    return written
 
 
 def download_excel_from_drive():
@@ -308,6 +367,20 @@ def normalize_header(value):
     )
 
 
+def is_student_sheet(normalized_sheet):
+    """Acepta pestañas base conocidas y variantes nuevas de Comunidad Terapéutica."""
+    return normalized_sheet in STUDENT_SHEETS or COMMUNITY_SHEET_MARKER in normalized_sheet
+
+
+def sheet_context(normalized_sheet, group=""):
+    text = f"{normalized_sheet} {normalize_header(group)}"
+    if COMMUNITY_SHEET_MARKER in text:
+        return "Comunidad Terapéutica"
+    if normalized_sheet == "mult. asistencia" or "multigrado" in text:
+        return "Multigrado"
+    return "Alta"
+
+
 def find_column(headers, aliases, fallback=None):
     aliases = [normalize_header(alias) for alias in aliases]
     for index, header in enumerate(headers):
@@ -326,7 +399,7 @@ def read_student_records(buffer):
     for worksheet in workbook.worksheets:
         sheet_name = clean_text(worksheet.title)
         normalized_sheet = normalize_header(sheet_name)
-        if normalized_sheet not in STUDENT_SHEETS:
+        if not is_student_sheet(normalized_sheet):
             continue
         rows = worksheet.iter_rows(values_only=True)
         header = list(next(rows, ()))
@@ -359,7 +432,7 @@ def read_student_records(buffer):
             records.append({
                 "sheet": sheet_name, "name": name, "identification": identification,
                 "group": group,
-                "context": "Multigrado" if normalized_sheet == "mult. asistencia" or "multigrado" in group.lower() else "Alta",
+                "context": sheet_context(normalized_sheet, group),
                 "date": parse_date(class_date),
                 "date_label": format_date(class_date) if parse_date(class_date) else "",
                 "clei": clei_label,
@@ -562,6 +635,42 @@ def grupos():
             data_error="No se pudo leer el Excel desde Google Drive.",
             drive_updated="",
         )
+
+
+@app.route("/actualizar-planeacion", methods=["GET", "POST"])
+@login_required
+def actualizar_planeacion():
+    options=planning_update_options()
+    today=colombia_today()
+    friday=today.weekday()==4
+    page={"options": options, "selected": [], "proposal": [], "week_number": None, "error": None, "message": None, "is_friday": friday}
+    try:
+        buffer, _ = download_planning_from_drive()
+        all_rows=read_additional_planning_rows(buffer)
+        if request.method == "POST":
+            if request.form.get("action") == "confirm":
+                if not friday:
+                    page["error"]="La actualización solo puede confirmarse los viernes."
+                elif not request.form.get("confirmar"):
+                    page["error"]="Marca la confirmación para escribir la propuesta en Google Drive."
+                else:
+                    payload=json.loads(request.form.get("proposal_json", "[]"))
+                    written=append_planning_rows(payload)
+                    page["message"]=f"Actualización guardada en Google Drive: {len(written)} combinación(es)."
+            else:
+                selected=[]
+                for raw in request.form.getlist("clase"):
+                    subject, clei=raw.split("|",1)
+                    if (subject, clei) in options:selected.append((subject, clei))
+                week, proposal=build_weekly_proposal(all_rows, selected)
+                page.update({"selected": selected, "proposal": proposal, "week_number": week})
+                if not friday: page["error"]="La propuesta se puede consultar, pero solo se puede confirmar los viernes."
+                if not selected: page["error"]="Selecciona al menos una materia y CLEI según el horario de la próxima semana."
+        return render_template("actualizar_planeacion.html", current_user=session.get("user"), **page)
+    except Exception as exc:
+        app.logger.exception("No se pudo preparar la actualización semanal")
+        page["error"]="No se pudo preparar la actualización. Verifica la conexión y los permisos de edición del archivo de planeación."
+        return render_template("actualizar_planeacion.html", current_user=session.get("user"), **page)
 
 
 if __name__ == "__main__":
@@ -1016,3 +1125,5 @@ def planeacion():
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
         return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+
+
