@@ -1,0 +1,7 @@
+/* Reset and accessible defaults */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; color: var(--ink); background: var(--page); font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.45; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(7,143,145,.3); outline-offset: 2px; }

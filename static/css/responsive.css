@@ -1,0 +1,4 @@
+/* Responsive behavior */
+@media (max-width: 1050px) { .dashboard-grid { grid-template-columns: 1fr; }.contexts-grid { grid-template-columns: repeat(2, 1fr); }.analytics-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) { :root { --sidebar-width: 0px; }.sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: min(280px, 88vw); transform: translateX(-105%); transition: transform .2s ease; }.sidebar.is-open { transform: translateX(0); }.main-content { margin-left: 0; }.topbar { padding: 0 18px; }.mobile-menu { display: block; }.page-content { padding: 22px 18px; }.charts-grid, .insight-grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .contexts-grid, .analytics-grid { grid-template-columns: 1fr; }.panel { padding: 15px; }.hero { padding: 22px; }.menu-item { font-size: 11px; }.academic-year { font-size: 10px; }.quick-grid { grid-template-columns: 1fr; } }

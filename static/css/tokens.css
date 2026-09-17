@@ -1,0 +1,9 @@
+/* Design tokens */
+:root {
+  --navy: #0c526b; --navy-dark: #083f54; --teal: #078f91;
+  --green: #52aa82; --green-dark: #287653; --gold: #d49e2b;
+  --purple: #80539c; --ink: #183047; --muted: #71808b;
+  --line: #e2e9ed; --surface: #ffffff; --page: #f4f8f9;
+  --shadow: 0 8px 24px rgba(24, 48, 71, .08);
+  --sidebar-width: 260px; --radius-sm: 8px; --radius-md: 14px;
+}
