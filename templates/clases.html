@@ -1,6 +1,294 @@
 {% extends "base.html" %}
-{% block title %}Mis clases | Panel Docente{% endblock %}
-{% block content %}
-<section class="welcome-section"><p class="eyebrow">HISTORIAL PEDAGÓGICO</p><h1>Mis clases</h1><p class="subtitle">Explora tus clases en el calendario y presiona cualquier evento para ver todos sus detalles.</p></section>{% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>Verifica la conexión y los permisos del archivo en Google Drive.</small></div>{% endif %}<div class="calendar-toolbar"><form class="classes-toolbar" method="get" action="/clases"><div><label for="buscar">Buscar</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Tema, grupo u observación"></div><div><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Todos</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select></div><div><label for="asignatura">Asignatura</label><select id="asignatura" name="asignatura"><option value="">Todas</option>{% for subject in subjects %}<option value="{{ subject }}" {% if subject == subject_filter %}selected{% endif %}>{{ subject }}</option>{% endfor %}</select></div><div><label for="grupo">Grupo</label><select id="grupo" name="grupo"><option value="">Todos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select></div><button class="primary-button" type="submit">Filtrar</button></form><div class="calendar-actions"><button type="button" id="prevMonth" aria-label="Mes anterior">‹</button><div class="calendar-title" id="calendarTitle"></div><button type="button" id="nextMonth" aria-label="Mes siguiente">›</button><button type="button" id="todayBtn" title="Ir a hoy">Hoy</button></div></div><p class="class-count">{{ classes|length }} clase(s) encontradas · Presiona una clase para abrir la información completa.</p><section class="calendar-panel"><div class="calendar-weekdays"><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div></div><div class="calendar-grid" id="calendarGrid"></div></section><div id="eventData" class="hidden-data">{% for item in classes %}<article class="class-source" data-date="{{ item.date.isoformat() }}" data-context-class="{{ item.context_class }}" data-subject="{{ item.subject|e }}" data-group="{{ item.group|e }}" data-context="{{ item.context|e }}" data-theme="{{ (item.novelty if item.no_class else item.theme)|e }}" data-cycle="{{ ('Ciclo ' ~ item.cycle ~ ' · Semana ' ~ item.cycle_week ~ ' de 3') if item.cycle else 'Sin ciclo asignado' }}" data-source="{{ item.source|e }}" data-status="{{ 'Novedad registrada' if item.no_class else 'Clase dictada' }}" data-observations="{{ item.observations|e }}" data-link="{{ item.drive_link|e }}"></article>{% endfor %}</div>
+
+{% block title %}
+Mis clases | Panel Docente
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/classes.js') }}" defer></script>{% endblock %}
+
+{% block content %}
+
+<section class="welcome-section">
+  <p class="eyebrow">HISTORIAL PEDAGÓGICO</p>
+
+  <h1>Mis clases</h1>
+
+  <p class="subtitle">
+    Consulta tus clases por fecha. El calendario siempre inicia en el mes actual.
+  </p>
+</section>
+
+{% if data_error %}
+  <div class="data-alert" role="alert">
+    {{ data_error }}
+
+    <small>
+      Verifica la conexión y los permisos del archivo en Google Drive.
+    </small>
+  </div>
+{% endif %}
+
+<div class="calendar-toolbar">
+
+  <form
+    class="classes-toolbar"
+    method="get"
+    action="{{ url_for('mis_clases') }}"
+  >
+
+    <div>
+      <label for="buscar">Buscar</label>
+
+      <input
+        id="buscar"
+        name="buscar"
+        value="{{ search }}"
+        placeholder="Tema, grupo u observación"
+      >
+    </div>
+
+    <div>
+      <label for="contexto">Contexto</label>
+
+      <select id="contexto" name="contexto">
+        <option value="">Todos</option>
+
+        {% for context in contexts %}
+          <option
+            value="{{ context }}"
+            {% if context == context_filter %}selected{% endif %}
+          >
+            {{ context }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="asignatura">Asignatura</label>
+
+      <select id="asignatura" name="asignatura">
+        <option value="">Todas</option>
+
+        {% for subject in subjects %}
+          <option
+            value="{{ subject }}"
+            {% if subject == subject_filter %}selected{% endif %}
+          >
+            {{ subject }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="grupo">Grupo</label>
+
+      <select id="grupo" name="grupo">
+        <option value="">Todos</option>
+
+        {% for group in groups %}
+          <option
+            value="{{ group }}"
+            {% if group == group_filter %}selected{% endif %}
+          >
+            {{ group }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button class="primary-button" type="submit">
+      Filtrar
+    </button>
+
+  </form>
+
+  <div
+    class="calendar-actions"
+    aria-label="Navegación del calendario"
+  >
+
+    <button
+      type="button"
+      id="prevMonth"
+      aria-label="Mes anterior"
+    >
+      ‹
+    </button>
+
+    <div
+      class="calendar-title"
+      id="calendarTitle"
+      aria-live="polite"
+    ></div>
+
+    <button
+      type="button"
+      id="nextMonth"
+      aria-label="Mes siguiente"
+    >
+      ›
+    </button>
+
+    <button
+      type="button"
+      id="todayBtn"
+      title="Volver al mes actual"
+    >
+      Hoy
+    </button>
+
+  </div>
+
+</div>
+
+<div
+  class="calendar-status"
+  id="calendarStatus"
+  role="status"
+  aria-live="polite"
+></div>
+
+<p class="class-count">
+  {{ classes|length }} clase(s) encontradas.
+  Selecciona una clase para abrir todos sus detalles.
+</p>
+
+<section class="calendar-panel">
+
+  <div class="calendar-weekdays">
+    <div>Lun</div>
+    <div>Mar</div>
+    <div>Mié</div>
+    <div>Jue</div>
+    <div>Vie</div>
+    <div>Sáb</div>
+    <div>Dom</div>
+  </div>
+
+  <div
+    class="calendar-grid"
+    id="calendarGrid"
+  ></div>
+
+</section>
+
+<div
+  id="eventData"
+  class="hidden-data"
+>
+
+  {% for item in classes %}
+
+    <article
+      class="class-source"
+      data-date="{{ item.date.isoformat() }}"
+      data-context-class="{{ item.context_class }}"
+      data-subject="{{ item.subject|e }}"
+      data-group="{{ item.group|e }}"
+      data-context="{{ item.context|e }}"
+      data-theme="{{ (item.novelty if item.no_class else item.theme)|e }}"
+      data-cycle="{{ ('Ciclo ' ~ item.cycle ~ ' · Semana ' ~ item.cycle_week ~ ' de 3') if item.cycle else 'Sin ciclo asignado' }}"
+      data-source="{{ item.source|e }}"
+      data-status="{{ 'Novedad registrada' if item.no_class else 'Clase dictada' }}"
+      data-observations="{{ item.observations|e }}"
+      data-link="{{ item.drive_link|e }}"
+    ></article>
+
+  {% endfor %}
+
+</div>
+
+<!-- Ventana de detalle de la clase -->
+
+<div
+  class="details-backdrop"
+  id="detailsBackdrop"
+>
+
+  <div
+    class="details-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detailTitle"
+  >
+
+    <button
+      class="details-close"
+      id="closeDetails"
+      type="button"
+      aria-label="Cerrar detalles"
+    >
+      ×
+    </button>
+
+    <div
+      class="details-kicker"
+      id="detailKicker"
+    ></div>
+
+    <h2 id="detailTitle"></h2>
+
+    <p
+      class="details-theme"
+      id="detailTheme"
+    ></p>
+
+    <div class="details-grid">
+
+      <div class="detail-box">
+        <label>Contexto</label>
+        <p id="detailContext"></p>
+      </div>
+
+      <div class="detail-box">
+        <label>Grupo</label>
+        <p id="detailGroup"></p>
+      </div>
+
+      <div class="detail-box">
+        <label>Ciclo y semana</label>
+        <p id="detailCycle"></p>
+      </div>
+
+      <div class="detail-box">
+        <label>Estado</label>
+        <p id="detailStatus"></p>
+      </div>
+
+      <div class="detail-box detail-full">
+        <label>Observaciones / desarrollo</label>
+        <p id="detailObservations"></p>
+      </div>
+
+      <div class="detail-box detail-full">
+        <label>Fuente</label>
+        <p id="detailSource"></p>
+      </div>
+
+    </div>
+
+    <a
+      class="details-link"
+      id="detailLink"
+      href="#"
+      target="_blank"
+      rel="noopener noreferrer"
+      style="display: none;"
+    >
+      Abrir material de Drive ↗
+    </a>
+
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script
+  src="{{ url_for('static', filename='js/classes.js') }}"
+  defer
+></script>
+
+{% endblock %}
