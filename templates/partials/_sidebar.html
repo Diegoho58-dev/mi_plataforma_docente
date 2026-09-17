@@ -1,0 +1,26 @@
+<aside class="sidebar" id="mainSidebar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">DH</div>
+    <div><strong>Diego Hoyos</strong><span>Panel docente personal</span></div>
+  </div>
+  <div class="profile">
+    <img src="{{ url_for('static', filename='docente.jpg') }}" alt="Imagen del docente">
+    <h2>Diego Hoyos</h2>
+    <p>Docente de Matemáticas<br>y Ciencias Naturales</p>
+  </div>
+  {% set nav_items = [
+    ('home', '⌂', 'Inicio'), ('mis_clases', '▤', 'Mis clases'),
+    ('planeacion', '▥', 'Planeación'), ('actualizar_planeacion', '↻', 'Actualizar planeación'),
+    ('grupos', '♧', 'Mis grupos'), ('estudiantes', '♙', 'Estudiantes'),
+    ('asistencia', '✓', 'Asistencia'), ('seguimiento', '⌁', 'Seguimiento'),
+    ('materiales', '□', 'Materiales')
+  ] %}
+  <nav class="menu" aria-label="Navegación principal">
+    {% for endpoint, icon, label in nav_items %}
+      <a class="menu-item{% if request.endpoint == endpoint %} active{% endif %}" href="{{ url_for(endpoint) }}">
+        <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span>{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+  <a class="logout" href="{{ url_for('logout') }}"><span class="menu-icon" aria-hidden="true">↪</span>Cerrar sesión</a>
+</aside>
