@@ -30,6 +30,7 @@
     const science = Array.isArray(data.science) ? data.science : [];
     const contexts = Array.isArray(data.contexts) ? data.contexts : [];
     const risks = Array.isArray(data.risks) ? data.risks : [];
+    const attendanceSummary = data.attendance_summary || { present: 0, absent: 0 };
     const totalAttendance = sum(math.map(x => x.present)) + sum(science.map(x => x.present)) + sum(math.map(x => x.absent)) + sum(science.map(x => x.absent));
     const hasAttendance = dates.length > 0 && totalAttendance > 0;
 
@@ -51,6 +52,13 @@
       ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: colors.grid } } } }
     }, totalAttendance > 0);
+
+    const balanceTotal = Number(attendanceSummary.present || 0) + Number(attendanceSummary.absent || 0);
+    makeChart("attendanceBalanceChart", {
+      type: "doughnut",
+      data: { labels: ["Asistencias", "Inasistencias"], datasets: [{ data: [attendanceSummary.present || 0, attendanceSummary.absent || 0], backgroundColor: [colors.green, colors.red], borderWidth: 3, borderColor: "#fff" }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: "62%", plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: item => `${item.label}: ${item.raw} (${balanceTotal ? ((item.raw / balanceTotal) * 100).toFixed(1) : 0}%)` } } } }
+    }, balanceTotal > 0);
 
     makeChart("contextChart", {
       type: "doughnut",
