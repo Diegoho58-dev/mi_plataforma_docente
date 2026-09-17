@@ -26,16 +26,24 @@
   <article class="analytics-card red-accent"><strong>{{ stats.risk_count }}</strong><span>Seguimiento prioritario</span><small>Prioridad por inasistencia</small></article>
 </section>
 
-<section class="analytics-mini-grid" aria-label="Promedios y asistencia por materia">
-  <article class="analytics-mini-card"><span>Promedio Matemáticas</span><strong>{{ '%.2f'|format(stats.math_average) if stats.math_average is not none else '—' }}</strong><small>Calificaciones válidas registradas</small></article>
-  <article class="analytics-mini-card"><span>Promedio Ciencias Naturales</span><strong>{{ '%.2f'|format(stats.science_average) if stats.science_average is not none else '—' }}</strong><small>Calificaciones válidas registradas</small></article>
-  <article class="analytics-mini-card"><span>Asistencia Matemáticas</span><strong>{{ stats.math_rate }}%</strong><small>Sesiones con registro</small></article>
-  <article class="analytics-mini-card"><span>Asistencia Ciencias</span><strong>{{ stats.science_rate }}%</strong><small>Sesiones con registro</small></article>
+<section class="analytics-mini-grid" aria-label="Estadísticas detalladas de asistencia">
+  <article class="analytics-mini-card"><span>Sesiones analizadas</span><strong>{{ stats.total_sessions }}</strong><small>Matemáticas {{ stats.math_sessions }} · Ciencias {{ stats.science_sessions }}</small></article>
+  <article class="analytics-mini-card"><span>Asistencias registradas</span><strong>{{ stats.total_present }}</strong><small>{{ stats.attendance_rate }}% del total de sesiones</small></article>
+  <article class="analytics-mini-card"><span>Inasistencias registradas</span><strong>{{ stats.total_absent }}</strong><small>Revisar causas y activar seguimiento</small></article>
+  <article class="analytics-mini-card"><span>Promedios académicos</span><strong>{{ '%.2f'|format(stats.math_average) if stats.math_average is not none else '—' }} / {{ '%.2f'|format(stats.science_average) if stats.science_average is not none else '—' }}</strong><small>Matemáticas / Ciencias Naturales</small></article>
+</section>
+
+<section class="attendance-evidence" aria-label="Evidencia de asistencia">
+  <div class="evidence-title"><p class="chart-kicker">EVIDENCIA PRINCIPAL</p><h2>Balance de asistencia</h2><span>Comparación directa de sesiones presentes y ausentes</span></div>
+  <div class="evidence-stat present"><strong>{{ stats.total_present }}</strong><span>Asistencias</span></div>
+  <div class="evidence-stat absent"><strong>{{ stats.total_absent }}</strong><span>Inasistencias</span></div>
+  <div class="evidence-stat rate"><strong>{{ stats.attendance_rate }}%</strong><span>Asistencia global</span></div>
 </section>
 
 <div class="charts-grid" aria-label="Gráficas de seguimiento">
   <section class="panel chart-panel chart-wide"><div class="chart-heading"><div><p class="chart-kicker">EVOLUCIÓN</p><h2>Asistencia por fecha</h2></div><span class="chart-help">Asistencias e inasistencias registradas</span></div><div class="chart-box"><canvas id="attendanceChart" aria-label="Evolución de asistencia por fecha"></canvas><p class="chart-empty" data-empty-for="attendanceChart" hidden>No hay fechas con registros de asistencia para graficar.</p></div></section>
-  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">COMPARACIÓN</p><h2>Desempeño por materia</h2></div></div><div class="chart-box"><canvas id="subjectChart" aria-label="Comparación de asistencias e inasistencias por materia"></canvas><p class="chart-empty" data-empty-for="subjectChart" hidden>No hay registros de asistencia por materia.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">BALANCE GLOBAL</p><h2>Asistencia frente a inasistencia</h2></div></div><div class="chart-box"><canvas id="attendanceBalanceChart" aria-label="Balance global de asistencias e inasistencias"></canvas><p class="chart-empty" data-empty-for="attendanceBalanceChart" hidden>No hay sesiones con asistencia para mostrar.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">COMPARACIÓN</p><h2>Asistencia por materia</h2></div></div><div class="chart-box"><canvas id="subjectChart" aria-label="Comparación de asistencias e inasistencias por materia"></canvas><p class="chart-empty" data-empty-for="subjectChart" hidden>No hay registros de asistencia por materia.</p></div></section>
   <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">DISTRIBUCIÓN</p><h2>Clases por contexto</h2></div></div><div class="chart-box"><canvas id="contextChart" aria-label="Distribución de clases por contexto"></canvas><p class="chart-empty" data-empty-for="contextChart" hidden>No hay clases de planeación para distribuir.</p></div></section>
   <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">ALERTA</p><h2>Inasistencias prioritarias</h2></div></div><div class="chart-box"><canvas id="riskChart" aria-label="Inasistencias de estudiantes priorizados"></canvas><p class="chart-empty" data-empty-for="riskChart" hidden>No hay estudiantes priorizados con inasistencias.</p></div></section>
 </div>
