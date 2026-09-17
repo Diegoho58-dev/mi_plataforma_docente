@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Materiales | Panel Docente{% endblock %}
+{% block content %}
+<section class="welcome-section"><p class="eyebrow">RECURSOS DE CLASE</p><h1>Materiales</h1><p class="subtitle">Accede a los enlaces de Drive registrados para cada clase del Excel.</p></section>
+      {% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>Verifica la conexión y los permisos del archivo en Google Drive.</small></div>{% endif %}
+      <form class="materials-toolbar" method="get" action="{{ url_for('materiales') }}">
+        <div><label for="buscar">Buscar</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Tema, asignatura o grupo"></div>
+        <div><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Todos los contextos</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select></div>
+        <div><label for="grupo">Grupo</label><select id="grupo" name="grupo"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select></div>
+        <button class="primary-button" type="submit">Filtrar</button>
+      </form>
+      <div class="materials-grid">
+        {% for item in materials %}
+        <article class="material-card">
+          <div class="material-meta"><span class="tag {{ item.context_class }}">{{ item.context }}</span><span class="material-date">{{ item.date_label }}</span></div>
+          <h2>{{ item.subject }} · {{ item.group }}</h2>
+          <p><strong>Tema:</strong> {{ item.theme }}</p>
+          {% if item.observations %}<p><strong>Observaciones:</strong> {{ item.observations }}</p>{% endif %}
+          {% if item.cycle %}<p class="material-source">Ciclo {{ item.cycle }} · Semana {{ item.cycle_week }} de 3 · Hoja {{ item.source }}</p>{% endif %}
+          <a class="material-button" href="{{ item.drive_link }}" target="_blank" rel="noopener noreferrer">Abrir material en Drive ↗</a>
+        </article>
+        {% else %}
+        <div class="panel empty-state material-empty">No hay materiales con enlace de Drive para estos filtros.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
+{% endblock %}

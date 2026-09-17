@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c526b">
+  <title>{% block title %}Panel Docente{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="page-{{ request.endpoint|default('app') }}">
+  <div class="app-shell">
+    {% include 'partials/_sidebar.html' %}
+    <main class="main-content">
+      {% include 'partials/_topbar.html' %}
+      <div class="page-content">
+        {% block content %}{% endblock %}
+      </div>
+      {% include 'partials/_footer.html' %}
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
