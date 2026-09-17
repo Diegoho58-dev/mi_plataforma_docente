@@ -871,9 +871,9 @@ def student_detail():
 
 def attendance_value(value):
     text = clean_text(value).lower()
-    if text in {"si", "sí", "s", "asistio", "asistió", "presente", "p"}:
+    if text in {"si", "sí", "s", "1", "true", "x", "a", "asistio", "asistió", "presente", "presencial", "p", "asistencia", "asistio a clase", "asistió a clase"}:
         return "Asistió"
-    if text in {"no", "n", "ausente", "inasistente", "i"}:
+    if text in {"no", "n", "0", "false", "f", "ausente", "inasistente", "in asistencia", "i", "falta", "faltó", "falto", "no asistio", "no asistió"}:
         return "No asistió"
     return clean_text(value) or "Sin registro"
 
