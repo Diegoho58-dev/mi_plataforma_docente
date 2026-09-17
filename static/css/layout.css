@@ -1,10 +1,12 @@
-/* Application shell and shared layout */
-.app-shell { min-height: 100vh; }
-.main-content { min-height: 100vh; margin-left: var(--sidebar-width); }
-.page-content { max-width: 1500px; margin: 0 auto; padding: 30px 36px 18px; }
-.topbar { display: flex; align-items: center; min-height: 64px; padding: 0 36px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.88); }
-.topbar-spacer { flex: 1; }.topbar-divider { color: var(--line); }.academic-year { color: var(--muted); font-size: 11px; font-weight: 700; }
-.welcome-section { margin-bottom: 24px; }.welcome-section h1, .content h1 { margin: 3px 0 6px; color: var(--ink); font-size: clamp(24px, 3vw, 32px); line-height: 1.15; }
-.eyebrow { margin: 0; color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: .13em; }.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
-.footer-signature { margin-top: 28px; padding: 22px 10px 8px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 11px; line-height: 1.6; }
-.footer-signature strong, .footer-signature span { display: block; }.footer-signature strong { color: var(--navy); font-size: 12px; }.footer-signature span { color: #8b98a2; }
+.menu-section-title {
+  margin: 15px 10px 5px;
+  color: #86c7c5;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.menu-section-title:first-child {
+  margin-top: 0;
+}
