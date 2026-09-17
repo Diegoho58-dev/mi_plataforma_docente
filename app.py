@@ -32,7 +32,15 @@ COMMUNITY_SHEET_MARKER = "comunidad terapeutica"
 COMMUNITY_NOTES_SHEET_MARKER = "notas com ter"
 CONTEXT_OPTIONS = ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"]
 CYCLE_START = date(2026, 7, 6)
-DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
+
+# La conexión se activa si está marcada explícitamente o si Render ya tiene
+# configuradas las credenciales necesarias. Así Seguimiento no queda vacío
+# únicamente porque se olvidó agregar GOOGLE_DRIVE_ENABLED=true.
+DRIVE_ENABLED = (
+    os.environ.get("GOOGLE_DRIVE_ENABLED", "").strip().lower() == "true"
+    or bool(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"))
+    and bool(os.environ.get("GOOGLE_DRIVE_FILE_ID"))
+)
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
 
 
@@ -1168,4 +1176,3 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
