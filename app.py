@@ -443,8 +443,6 @@ def read_student_records(buffer):
         science_grade_col = find_column(header, ["nota ciencias", "calificacion ciencias", "ciencias nota", "ciencias calificacion", "ciencias naturales nota", "ciencias naturales promedio"], 7)
         observation_col = find_column(header, ["observacion", "observaciones"], 10)
         patio_col = find_column(header, ["patio", "numero de patio", "número de patio"], None)
-        phone_col = find_column(header, ["telefono", "teléfono", "celular", "contacto"], None)
-        email_col = find_column(header, ["correo", "email", "correo electronico", "correo electrónico"], None)
         for row in rows:
             values = list(row)
             if not any(clean_text(value) for value in values):
@@ -477,8 +475,6 @@ def read_student_records(buffer):
                 "math_grade": clean_text(get(math_grade_col)),
                 "observation": clean_text(get(observation_col)),
                 "patio": clean_text(get(patio_col)),
-                "phone": clean_text(get(phone_col)),
-                "email": clean_text(get(email_col)),
             })
     return records
 
@@ -838,10 +834,10 @@ def student_detail():
                 "science_grade": item["science_grade"] or "—",
                 "observation": item["observation"] or "—",
             })
-        math_present = sum(item["math_attendance"] == "Asistió" for item in matches)
-        math_absent = sum(item["math_attendance"] == "No asistió" for item in matches)
-        science_present = sum(item["science_attendance"] == "Asistió" for item in matches)
-        science_absent = sum(item["science_attendance"] == "No asistió" for item in matches)
+        math_present = sum(attendance_value(item["math_attendance"]) == "Asistió" for item in matches if item["math_attendance"])
+        math_absent = sum(attendance_value(item["math_attendance"]) == "No asistió" for item in matches if item["math_attendance"])
+        science_present = sum(attendance_value(item["science_attendance"]) == "Asistió" for item in matches if item["science_attendance"])
+        science_absent = sum(attendance_value(item["science_attendance"]) == "No asistió" for item in matches if item["science_attendance"])
         total_present = math_present + science_present
         total_absent = math_absent + science_absent
         total_sessions = total_present + total_absent
@@ -849,8 +845,6 @@ def student_detail():
             "student": {
                 "name": first["name"], "identification": first["identification"] or "No registrada",
                 "patio": next((item["patio"] for item in matches if item["patio"]), "No registrado"),
-                "phone": next((item["phone"] for item in matches if item["phone"]), "No registrado"),
-                "email": next((item["email"] for item in matches if item["email"]), "No registrado"),
                 "group": first["group"], "clei": first["clei"], "context": first["context"],
                 "sessions": len({item["date"] for item in matches if item["date"]}),
                 "math_present": math_present, "math_absent": math_absent,
