@@ -263,3 +263,7 @@ body.modal-open {
 @media (max-width:800px) { .attendance-evidence { grid-template-columns:1fr 1fr; } .evidence-title { grid-column:1/-1; } }
 @media (max-width:480px) { .attendance-evidence { grid-template-columns:1fr; } .evidence-title { grid-column:auto; } }
 
+/* Ocultar definitivamente los avisos cuando la gráfica sí tiene datos */
+.chart-empty[hidden] {
+  display: none !important;
+}
