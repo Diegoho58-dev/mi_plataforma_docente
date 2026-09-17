@@ -971,7 +971,8 @@ def seguimiento():
         "stats": {
             "classes": 0, "students": 0, "groups": 0, "attendance_rate": 0,
             "math_rate": 0, "science_rate": 0, "math_average": None, "science_average": None,
-            "risk_count": 0,
+            "risk_count": 0, "total_sessions": 0, "total_present": 0, "total_absent": 0,
+            "math_sessions": 0, "science_sessions": 0,
         },
         "chart_data": json.dumps({"dates": [], "math": [], "science": [], "contexts": [], "risks": []}),
         "interpretations": [], "risk_students": [], "data_error": None,
@@ -1049,6 +1050,7 @@ def seguimiento():
             if grades["science"]: averages.append(f"Ciencias Naturales {sum(grades['science']) / len(grades['science']):.2f}")
             interpretations.append("Promedios de calificación registrados: " + " y ".join(averages) + ".")
         chart_data = {
+            "attendance_summary": {"present": total_present, "absent": total_sessions - total_present},
             "dates": [item[1]["label"] for item in date_items],
             "math": [{"present": item[1]["math_present"], "absent": item[1]["math_absent"]} for item in date_items],
             "science": [{"present": item[1]["science_present"], "absent": item[1]["science_absent"]} for item in date_items],
@@ -1056,7 +1058,7 @@ def seguimiento():
             "risks": [{"label": item["name"], "value": item["absent"]} for item in risk_students[:8]],
         }
         page_data.update({
-            "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len(risk_students)},
+            "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len(risk_students), "total_sessions": total_sessions, "total_present": total_present, "total_absent": total_sessions - total_present, "math_sessions": attendance["math"]["sessions"], "science_sessions": attendance["science"]["sessions"]},
             "chart_data": json.dumps(chart_data, ensure_ascii=False), "interpretations": interpretations, "risk_students": risk_students, "drive_updated": metadata.get("modifiedTime", ""),
         })
         return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
@@ -1166,3 +1168,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
