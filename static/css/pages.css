@@ -76,3 +76,24 @@
 .action-button { width: auto; margin-top: 0; }.confirmation-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }.confirmation-check { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 14px; color: #405365; font-size: 12px; }.confirmation-check input { margin-top: 3px; accent-color: var(--teal); }.primary-button:disabled { color: #8c989e; background: #e6ecee; cursor: not-allowed; transform: none; }.proposal-table { overflow-x: auto; }.proposal-table table { width: 100%; min-width: 760px; border-collapse: collapse; }.proposal-table th, .proposal-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 12px; }.proposal-table th { color: var(--muted); background: #f7fafb; font-size: 10px; text-transform: uppercase; }.planning-empty { margin-top: 16px; }
 .alert-error { color: #8b2d24; border-color: #f2c2bc; background: #fff1f0; }.alert-success { color: var(--green-dark); border-color: #b8e3d0; background: #edf9f2; }
 @media (max-width: 620px) { .planning-options { grid-template-columns: 1fr; }.panel-heading { align-items: flex-start; flex-direction: column; }.action-button { width: 100%; } }
+
+/* Estado informativo del calendario */
+
+.calendar-status {
+  min-height: 20px;
+  margin: 10px 0 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.calendar-status.has-events {
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+.calendar-status.is-empty {
+  padding: 10px 12px;
+  border-left: 3px solid var(--gold);
+  color: #7a5a13;
+  background: #fff8e4;
+}
