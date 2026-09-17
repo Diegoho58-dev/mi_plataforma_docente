@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Seguimiento | Panel Docente{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<section class="welcome-section analytics-header">
+  <div>
+    <p class="eyebrow">ANÁLISIS PEDAGÓGICO</p>
+    <h1>Seguimiento estadístico</h1>
+    <p class="subtitle">Una lectura integral de asistencia, desempeño y evolución de los grupos a partir del Excel.</p>
+  </div>
+  {% if drive_updated %}<span class="data-freshness">Última actualización: {{ drive_updated }}</span>{% endif %}
+</section>
+
+{% if data_error %}
+<div class="data-alert" role="alert"><strong>{{ data_error }}</strong><small>Verifica la conexión y los permisos del archivo en Google Drive. Cuando no haya datos, el panel conservará sus indicadores en cero.</small></div>
+{% endif %}
+
+<section class="analytics-grid" aria-label="Indicadores generales">
+  <article class="analytics-card teal-accent"><strong>{{ stats.attendance_rate }}%</strong><span>Asistencia global</span><small>Matemáticas {{ stats.math_rate }}% · Ciencias {{ stats.science_rate }}%</small></article>
+  <article class="analytics-card green-accent"><strong>{{ stats.students }}</strong><span>Estudiantes analizados</span><small>{{ stats.groups }} grupos con registros</small></article>
+  <article class="analytics-card gold-accent"><strong>{{ stats.classes }}</strong><span>Clases registradas</span><small>Desde las hojas de planeación</small></article>
+  <article class="analytics-card red-accent"><strong>{{ stats.risk_count }}</strong><span>Seguimiento prioritario</span><small>Prioridad por inasistencia</small></article>
+</section>
+
+<section class="analytics-mini-grid" aria-label="Promedios y asistencia por materia">
+  <article class="analytics-mini-card"><span>Promedio Matemáticas</span><strong>{{ '%.2f'|format(stats.math_average) if stats.math_average is not none else '—' }}</strong><small>Calificaciones válidas registradas</small></article>
+  <article class="analytics-mini-card"><span>Promedio Ciencias Naturales</span><strong>{{ '%.2f'|format(stats.science_average) if stats.science_average is not none else '—' }}</strong><small>Calificaciones válidas registradas</small></article>
+  <article class="analytics-mini-card"><span>Asistencia Matemáticas</span><strong>{{ stats.math_rate }}%</strong><small>Sesiones con registro</small></article>
+  <article class="analytics-mini-card"><span>Asistencia Ciencias</span><strong>{{ stats.science_rate }}%</strong><small>Sesiones con registro</small></article>
+</section>
+
+<div class="charts-grid" aria-label="Gráficas de seguimiento">
+  <section class="panel chart-panel chart-wide"><div class="chart-heading"><div><p class="chart-kicker">EVOLUCIÓN</p><h2>Asistencia por fecha</h2></div><span class="chart-help">Asistencias e inasistencias registradas</span></div><div class="chart-box"><canvas id="attendanceChart" aria-label="Evolución de asistencia por fecha"></canvas><p class="chart-empty" data-empty-for="attendanceChart" hidden>No hay fechas con registros de asistencia para graficar.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">COMPARACIÓN</p><h2>Desempeño por materia</h2></div></div><div class="chart-box"><canvas id="subjectChart" aria-label="Comparación de asistencias e inasistencias por materia"></canvas><p class="chart-empty" data-empty-for="subjectChart" hidden>No hay registros de asistencia por materia.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">DISTRIBUCIÓN</p><h2>Clases por contexto</h2></div></div><div class="chart-box"><canvas id="contextChart" aria-label="Distribución de clases por contexto"></canvas><p class="chart-empty" data-empty-for="contextChart" hidden>No hay clases de planeación para distribuir.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">ALERTA</p><h2>Inasistencias prioritarias</h2></div></div><div class="chart-box"><canvas id="riskChart" aria-label="Inasistencias de estudiantes priorizados"></canvas><p class="chart-empty" data-empty-for="riskChart" hidden>No hay estudiantes priorizados con inasistencias.</p></div></section>
+</div>
+
+<section class="panel interpretation"><div class="panel-heading"><div><p class="chart-kicker">LECTURA DOCENTE</p><h2>Interpretación pedagógica</h2></div><span class="interpretation-note">Los datos orientan decisiones; no reemplazan la observación del estudiante.</span></div><ul>{% for interpretation in interpretations %}<li>{{ interpretation }}</li>{% else %}<li>No hay información suficiente para emitir una interpretación.</li>{% endfor %}</ul></section>
+
+<section class="panel risk-panel analytics-risk-panel"><div class="panel-heading"><div><p class="chart-kicker">ACCIÓN PRIORITARIA</p><h2>Estudiantes que requieren seguimiento</h2></div><span class="interpretation-note">Criterio: asistencia menor al 70% o más inasistencias que asistencias.</span></div><table><thead><tr><th>Estudiante</th><th>CLEI / grupo</th><th>Sesiones</th><th>Asistencias</th><th>Inasistencias</th><th>Porcentaje</th><th>Lectura</th></tr></thead><tbody>{% for item in risk_students %}<tr><td><strong>{{ item.name }}</strong></td><td>CLEI {{ item.clei }}<small>{{ item.group }}</small></td><td>{{ item.sessions }}</td><td>{{ item.present }}</td><td class="risk-high">{{ item.absent }}</td><td><span class="rate-badge {% if item.rate < 70 %}rate-danger{% endif %}">{{ item.rate }}%</span></td><td class="risk-high">Priorizar contacto y revisión de causas</td></tr>{% else %}<tr><td colspan="7" class="empty-state">No hay estudiantes priorizados con los registros actuales.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
