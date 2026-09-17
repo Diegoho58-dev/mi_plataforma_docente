@@ -2,5 +2,95 @@
 {% block title %}Planeación | Panel Docente{% endblock %}
 {% block content %}
 <section class="welcome-section"><p class="eyebrow">PLANEACIÓN DOCENTE</p><h1>Planeación visual</h1><p class="subtitle">Una vista organizada por semanas y CLEI, como tu hoja de cálculo, pero más clara y fácil de consultar.</p></section>{% if data_error %}<div class="data-alert" role="alert">{{ data_error }}</div>{% endif %}<form class="plan-toolbar" method="get" action="/planeacion"><div><label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos los CLEI</option>{% for clei in cleis %}<option value="{{ clei }}" {% if clei == clei_filter %}selected{% endif %}>{{ clei }}</option>{% endfor %}</select></div><div><label for="materia">Materia</label><select id="materia" name="materia"><option value="">Todas las materias</option>{% for subject in subjects %}<option value="{{ subject }}" {% if subject == subject_filter %}selected{% endif %}>{{ subject }}</option>{% endfor %}</select></div><div><label for="semana">Semana</label><select id="semana" name="semana"><option value="">Todas las semanas</option>{% for week in weeks %}<option value="{{ week }}" {% if week == week_filter %}selected{% endif %}>{{ week }}</option>{% endfor %}</select></div><div><label for="buscar">Buscar tema</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Tema o palabra clave"></div><button class="primary-button" type="submit">Aplicar</button></form><div class="plan-actions"><button type="button" class="view-button active" id="boardBtn">▦ Vista tipo Excel</button><button type="button" class="view-button" id="cardsBtn">▤ Vista de tarjetas</button><button type="button" class="view-button" id="openAll">Abrir detalles</button><button type="button" class="view-button" id="closeAll">Cerrar detalles</button></div><div class="plan-summary"><span class="summary-pill">{{ planning|length }} registros</span>{% if clei_filter %}<span class="summary-pill">{{ clei_filter }}</span>{% endif %}{% if subject_filter %}<span class="summary-pill">{{ subject_filter }}</span>{% endif %}{% if week_filter %}<span class="summary-pill">{{ week_filter }}</span>{% endif %}</div><section class="excel-board" id="excelBoard"><div class="excel-grid"><div class="excel-cell excel-header excel-corner">SEMANA / CLEI</div>{% for clei in cleis %}<div class="excel-cell excel-header">{{ clei }}</div>{% endfor %}{% for week in weekly_groups %}<div class="excel-cell week-label"><strong>{{ week.week }}</strong><span>{{ week.date_range }}</span></div>{% for clei in cleis %}<div class="excel-cell">{% for item in week["cells"][clei] %}<article class="mini-card detail-trigger" data-subject="{{ item.subject }}" data-group="{{ item.group }}" data-theme="{{ item.theme|e }}" data-observations="{{ item.observations|e }}" data-objective="{{ item.objective|e }}" data-activity="{{ item.activity|e }}" data-status="{{ item.status|e }}" data-week="{{ week.week }}" data-date="{{ week.date_range }}" data-source="{{ item.source }}" data-link="{{ item.drive_link }}"><span class="mini-subject">{{ item.subject }}</span><strong>{{ item.group }}</strong><span class="mini-theme">{{ item.theme }}</span><span class="card-status">Planeado</span></article>{% else %}<div class="cell-empty">Sin registro</div>{% endfor %}</div>{% endfor %}{% else %}<div class="excel-cell" style="grid-column:1/-1;text-align:center;color:#73818a">No hay planeación para los filtros seleccionados.</div>{% endfor %}</div></section><section class="cards-view" id="cardsView">{% for item in planning %}<article class="plan-card detail-trigger" data-subject="{{ item.subject }}" data-group="{{ item.group }}" data-theme="{{ item.theme|e }}" data-observations="{{ item.observations|e }}" data-objective="{{ item.objective|e }}" data-activity="{{ item.activity|e }}" data-status="{{ item.status|e }}" data-week="{{ item.week }}" data-date="{{ item.date_label }}" data-source="{{ item.source }}" data-link="{{ item.drive_link }}"><span class="mini-subject">{{ item.subject }}</span><h2>{{ item.group }}</h2><p class="plan-theme"><strong>Tema:</strong> {{ item.theme }}</p><span class="card-status">{{ item.week }}</span></article>{% else %}<div class="panel empty-state">No hay planeación para los filtros seleccionados.</div>{% endfor %}</section>
+<div
+  class="detail-backdrop"
+  id="detailBackdrop"
+  role="presentation"
+>
+  <section
+    class="detail-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detailTitle"
+  >
+    <header class="detail-top">
+      <div>
+        <span
+          class="mini-subject"
+          id="detailSubject"
+        ></span>
+
+        <h2 id="detailTitle"></h2>
+
+        <small id="detailWeek"></small>
+      </div>
+
+      <button
+        type="button"
+        class="close-detail"
+        id="closeDetail"
+        aria-label="Cerrar detalle"
+      >
+        ×
+      </button>
+    </header>
+
+    <div class="detail-body">
+
+      <div class="detail-block">
+        <span class="detail-label">Tema</span>
+        <div
+          class="detail-value"
+          id="detailTheme"
+        ></div>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Objetivo de la clase</span>
+        <div
+          class="detail-value"
+          id="detailObjective"
+        ></div>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Actividad</span>
+        <div
+          class="detail-value"
+          id="detailActivity"
+        ></div>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Estado</span>
+        <div
+          class="detail-value"
+          id="detailStatus"
+        ></div>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Fuente</span>
+        <div
+          class="detail-value"
+          id="detailSource"
+        ></div>
+      </div>
+
+      <a
+        class="detail-link"
+        id="detailLink"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+        style="display: none;"
+      >
+        Abrir material
+      </a>
+
+    </div>
+  </section>
+</div>
+
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/planning.js') }}" defer></script>{% endblock %}
