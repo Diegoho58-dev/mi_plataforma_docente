@@ -247,3 +247,19 @@ body.modal-open {
 .analytics-risk-panel { margin-top:16px; }
 @media (max-width:900px) { .analytics-mini-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } .chart-wide { grid-column:auto; } }
 @media (max-width:600px) { .analytics-header { display:block; } .data-freshness { display:inline-block; margin-top:12px; } .analytics-mini-grid { grid-template-columns:1fr; } .chart-heading { display:block; } .chart-help, .interpretation-note { display:block; margin-top:5px; } }
+
+/* evidencia estadística de asistencia */
+.attendance-evidence { display:grid; grid-template-columns:minmax(220px,1.6fr) repeat(3,minmax(120px,1fr)); gap:12px; align-items:stretch; margin:0 0 16px; }
+.evidence-title, .evidence-stat { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:var(--shadow); }
+.evidence-title h2 { margin:0 0 4px; color:var(--ink); font-size:17px; }
+.evidence-title > span { color:var(--muted); font-size:11px; }
+.evidence-stat strong, .evidence-stat span { display:block; }
+.evidence-stat strong { font-size:27px; }
+.evidence-stat span { margin-top:3px; color:var(--muted); font-size:11px; font-weight:700; }
+.evidence-stat.present strong { color:var(--green-dark); }
+.evidence-stat.absent strong { color:#b42318; }
+.evidence-stat.rate strong { color:var(--teal); }
+.chart-empty { border:1px dashed #cbd8dc; border-radius:10px; background:#f8fbfc; }
+@media (max-width:800px) { .attendance-evidence { grid-template-columns:1fr 1fr; } .evidence-title { grid-column:1/-1; } }
+@media (max-width:480px) { .attendance-evidence { grid-template-columns:1fr; } .evidence-title { grid-column:auto; } }
+
