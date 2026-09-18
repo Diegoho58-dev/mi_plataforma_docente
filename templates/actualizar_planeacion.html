@@ -20,7 +20,7 @@
   <div class="data-alert alert-info"><strong>Regla de actualización:</strong> si la última clase fue un repaso, refuerzo o nivelación, se conserva la planeación actual. Si fue una clase de avance, se toma el siguiente tema de las hojas <strong>malla curri mat</strong> o <strong>malla curri bio</strong> del archivo base y se genera una estructura inicial para la clase. Las combinaciones no seleccionadas conservan su contenido anterior.</div>
   <form method="post" class="planning-selection-form" data-selection-form>
     <div class="planning-options">{% for option in options %}<label class="planning-option"><input type="checkbox" name="materia" value="{{ option.value }}" {% if option.value in selected %}checked{% endif %}><span><strong>{{ option.label }}</strong><small>Vaciar esta fila y diligenciarla</small></span></label>{% endfor %}</div>
-    <button class="primary-button action-button" type="submit">Actualizar con la malla curricular</button>
+    <div class="planning-form-actions"><button class="primary-button action-button" type="submit" name="accion" value="crear">Crear próxima semana</button><button class="secondary-button action-button" type="submit" name="accion" value="recalcular">Recalcular semana ya creada</button></div>
   </form>
 </section>
 
