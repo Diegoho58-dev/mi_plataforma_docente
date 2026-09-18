@@ -1,4 +1,3 @@
-
 import io
 import json
 import os
@@ -8,7 +7,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -423,7 +422,7 @@ def planning_range_label(start, end):
     return f"Del {start.day} de {months[start.month - 1]} al {end.day} de {months[end.month - 1]}"
 
 
-def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None):
+def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None, refresh_existing=False):
     """Crea la semana siguiente usando el siguiente tema de mat/bio cuando corresponde."""
     from copy import copy
     from openpyxl.styles import PatternFill
@@ -453,7 +452,7 @@ def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None):
 
         # Si el bloque siguiente ya contiene la semana, no lo duplica.
         existing_next = clean_text(worksheet.cell(target_start, 2).value)
-        if re.fullmatch(rf"Semana\s+{next_week}", existing_next, re.IGNORECASE):
+        if re.fullmatch(rf"Semana\s+{next_week}", existing_next, re.IGNORECASE) and not refresh_existing:
             already_exists.append(f"{subject} / Semana {next_week}")
             continue
 
@@ -996,14 +995,16 @@ def actualizar_planeacion():
                 buffer, _ = download_planning_from_drive()
                 base_buffer, _ = download_excel_from_drive()
                 curriculum = read_curriculum(base_buffer)
-                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected, curriculum)
+                refresh_existing = request.form.get("accion") == "recalcular"
+                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected, curriculum, refresh_existing=refresh_existing)
                 if created:
                     metadata = upload_planning_to_drive(updated_buffer)
                     page["created"] = created
                     page["already_exists"] = already_exists
                     missing = [subject for subject, topics in curriculum.items() if not topics]
                     warning = f" Aviso: no se encontró la hoja de malla para {', '.join(missing)}." if missing else ""
-                    page["message"] = f"Se creó la semana siguiente en {len(created)} hoja(s), usando la malla y la regla de repaso. Las combinaciones seleccionadas quedaron diligenciadas y las demás conservaron su contenido. Se actualizó el archivo de Drive.{warning}"
+                    verb = "recalculó" if refresh_existing else "creó"
+                    page["message"] = f"Se {verb} la semana siguiente en {len(created)} hoja(s), usando la malla y la regla de repaso. Las combinaciones seleccionadas quedaron actualizadas y las demás conservaron su contenido. Se actualizó el archivo de Drive.{warning}"
                 else:
                     page["already_exists"] = already_exists
                     page["message"] = "La siguiente semana ya estaba creada; no se duplicaron filas."
@@ -1052,7 +1053,7 @@ def estudiantes():
                 continue
             key = (item["name"], item["identification"], item["group"])
             student = unique.setdefault(key, {
-                "name": item["name"], "group": item["group"], "clei": item["clei"],
+                "name": item["name"], "identification": item["identification"], "group": item["group"], "clei": item["clei"],
                 "context": item["context"], "dates": set(), "math_grades": [], "science_grades": [],
             })
             if item["date"]:
@@ -1080,6 +1081,45 @@ def estudiantes():
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
 
+
+@app.route("/student-detail")
+@login_required
+def student_detail():
+    """Devuelve la ficha individual solicitada por el modal de Estudiantes."""
+    if not DRIVE_ENABLED:
+        return jsonify({"error": "La conexión con Google Drive está pausada."}), 503
+    try:
+        buffer, _ = download_excel_from_drive()
+        name = clean_text(request.args.get("nombre", ""))
+        identification = clean_text(request.args.get("identificacion", ""))
+        group = clean_text(request.args.get("grupo", ""))
+        records = [item for item in read_student_records(buffer) if (not name or item["name"] == name) and (not identification or item["identification"] == identification) and (not group or item["group"] == group)]
+        if not records:
+            return jsonify({"error": "No se encontraron registros para este estudiante."}), 404
+        observations, sessions, math_grades, science_grades = [], [], [], []
+        math_present = math_absent = science_present = science_absent = 0
+        for item in sorted(records, key=lambda value: value["date"] or date.min, reverse=True):
+            observation = item.get("observation", "")
+            if observation and observation not in observations:
+                observations.append(observation)
+            for raw, bucket in ((item["math_grade"], math_grades), (item["science_grade"], science_grades)):
+                try:
+                    bucket.append(float(raw.replace(",", ".")))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+            math_status = attendance_value(item["math_attendance"]) if item["math_attendance"] else "Sin registro"
+            science_status = attendance_value(item["science_attendance"]) if item["science_attendance"] else "Sin registro"
+            math_present += math_status == "Asistió"; math_absent += math_status == "No asistió"
+            science_present += science_status == "Asistió"; science_absent += science_status == "No asistió"
+            sessions.append({"date": item["date_label"] or "Sin fecha", "math_attendance": math_status, "math_grade": item["math_grade"] or "—", "science_attendance": science_status, "science_grade": item["science_grade"] or "—", "observation": observation or "—"})
+        total_present = math_present + science_present
+        total_absent = math_absent + science_absent
+        total_sessions = total_present + total_absent
+        student = {"name": records[0]["name"], "identification": records[0]["identification"] or "—", "patio": "—", "group": records[0]["group"], "context": records[0]["context"], "clei": records[0]["clei"], "observations": observations, "sessions_detail": sessions, "sessions": len(sessions), "total_present": total_present, "total_absent": total_absent, "attendance_rate": round(total_present * 100 / total_sessions, 1) if total_sessions else 0, "math_present": math_present, "math_absent": math_absent, "science_present": science_present, "science_absent": science_absent, "math_average": round(sum(math_grades) / len(math_grades), 2) if math_grades else None, "science_average": round(sum(science_grades) / len(science_grades), 2) if science_grades else None}
+        return jsonify({"student": student})
+    except Exception:
+        app.logger.exception("No se pudo cargar el detalle del estudiante")
+        return jsonify({"error": "No se pudo leer el detalle desde Google Drive."}), 500
 
 
 def attendance_value(value):
@@ -1472,3 +1512,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
