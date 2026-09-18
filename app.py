@@ -248,6 +248,17 @@ def planning_sheet_names(selected_subjects):
     return [subject for subject in selected_subjects if subject in allowed]
 
 
+def planning_selection_map(values):
+    """Convierte valores materia::CLEI en {materia: {CLEI...}}."""
+    result = {}
+    cleis = {"CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"}
+    for value in values:
+        subject, separator, clei = clean_text(value).partition("::")
+        if subject in {"Matemáticas", "Biología"} and (not separator or clei in cleis):
+            result.setdefault(subject, set()).add(clei if separator else "*")
+    return result
+
+
 def last_planning_block(worksheet):
     """Encuentra el último bloque de seis filas identificado por 'Semana N'."""
     matches = []
@@ -273,13 +284,49 @@ def copy_cell_style(source, target):
         target.protection = copy(source.protection)
 
 
+def planning_date_range(value):
+    """Lee un rango como 'Del 6 de julio al 10 de julio' y devuelve sus fechas."""
+    text = clean_text(value).lower().replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+    months = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12}
+    match = re.search(r"(?:del?\s+)?(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?\s+al\s+(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?", text)
+    if not match:
+        return None
+    year = int(match.group(3) or match.group(6) or colombia_today().year)
+    end_year = int(match.group(6) or year)
+    try:
+        start = date(year, months[match.group(2)], int(match.group(1)))
+        end = date(end_year, months[match.group(5)], int(match.group(4)))
+        return start, end
+    except (KeyError, ValueError):
+        return None
+
+
+def next_planning_week_range(worksheet, source_start):
+    """Calcula el lunes-viernes posterior al rango de la última semana."""
+    current = planning_date_range(worksheet.cell(source_start, 3).value)
+    if current:
+        start = current[0] + timedelta(days=7)
+    else:
+        today = colombia_today()
+        start = today + timedelta(days=(7 - today.weekday()) % 7)
+        if start <= today:
+            start += timedelta(days=7)
+    return start, start + timedelta(days=4)
+
+
+def planning_range_label(start, end):
+    months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    return f"Del {start.day} de {months[start.month - 1]} al {end.day} de {months[end.month - 1]}"
+
+
 def create_empty_planning_blocks(buffer, selected_subjects):
-    """Crea un bloque vacío de CLEI I-VI por cada materia seleccionada."""
+    """Crea la semana siguiente: vacía la materia elegida y conserva las demás."""
     from copy import copy
+    from openpyxl.styles import PatternFill
     from openpyxl import load_workbook
 
-    selected_subjects = planning_sheet_names(selected_subjects)
-    if not selected_subjects:
+    selected_map = planning_selection_map(selected_subjects)
+    if not selected_map:
         raise ValueError("Selecciona al menos una materia válida.")
 
     buffer.seek(0)
@@ -288,7 +335,8 @@ def create_empty_planning_blocks(buffer, selected_subjects):
     already_exists = []
     cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
 
-    for subject in selected_subjects:
+    available_subjects = [subject for subject in ("Matemáticas", "Biología") if subject in workbook.sheetnames]
+    for subject in available_subjects:
         if subject not in workbook.sheetnames:
             raise RuntimeError(f"No existe la hoja '{subject}' en el archivo de planeación.")
         worksheet = workbook[subject]
@@ -304,26 +352,39 @@ def create_empty_planning_blocks(buffer, selected_subjects):
             already_exists.append(f"{subject} / Semana {next_week}")
             continue
 
-        # Replica estilos, bordes, alineación, alturas y formatos de B:H.
+        next_start, next_end = next_planning_week_range(worksheet, source_start)
+        next_label = planning_range_label(next_start, next_end)
+
+        # Replica estilos, bordes, alineación, alturas y formatos de B:I.
         for offset, clei in enumerate(cleis):
             source_row = source_start + offset
             target_row = target_start + offset
             worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
             worksheet.row_dimensions[target_row].hidden = worksheet.row_dimensions[source_row].hidden
-            for column in range(2, 9):
-                copy_cell_style(worksheet.cell(source_row, column), worksheet.cell(target_row, column))
-                worksheet.cell(target_row, column).value = None
+            for column in range(2, 10):
+                source_cell = worksheet.cell(source_row, column)
+                target_cell = worksheet.cell(target_row, column)
+                copy_cell_style(source_cell, target_cell)
+                selected_clei = selected_map.get(subject, set())
+                clear_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
+                target_cell.value = None if clear_row else source_cell.value
             worksheet.cell(target_row, 4).value = clei
+
+            # La columna I corresponde a Aprobación. Se deja visible y resaltada
+            # para que pueda diligenciarse/corregirse en la nueva semana.
+            worksheet.cell(target_row, 9).fill = PatternFill(fill_type="solid", fgColor="FFF2CC")
 
         # La semana y la fecha ocupan verticalmente todo el bloque, como en el archivo original.
         for merged_range in (f"B{target_start}:B{target_end}", f"C{target_start}:C{target_end}"):
             worksheet.merge_cells(merged_range)
         worksheet.cell(target_start, 2).value = f"Semana {next_week}"
+        worksheet.cell(target_start, 3).value = next_label
 
         created.append({
             "subject": subject,
             "week": next_week,
             "rows": f"{target_start}-{target_end}",
+            "date_range": next_label,
         })
 
     buffer_out = io.BytesIO()
@@ -793,16 +854,17 @@ def grupos():
 @app.route("/actualizar-planeacion", methods=["GET", "POST"])
 @login_required
 def actualizar_planeacion():
-    options = ["Matemáticas", "Biología"]
+    cleis = ("CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI")
+    options = [{"value": f"{subject}::{clei}", "label": f"{subject} · {clei}"} for subject in ("Matemáticas", "Biología") for clei in cleis]
     today=colombia_today()
     friday=today.weekday()==4
     page={"options": options, "selected": [], "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
         if request.method == "POST":
-            selected = planning_sheet_names(request.form.getlist("materia"))
+            selected = request.form.getlist("materia")
             page["selected"] = selected
             if not selected:
-                page["error"] = "Selecciona al menos una materia para crear la nueva estructura."
+                page["error"] = "Selecciona al menos una combinación de materia y CLEI."
             elif PLANNING_ONLY_FRIDAY and not friday:
                 page["error"] = "La actualización solo puede confirmarse los viernes."
             else:
@@ -812,7 +874,7 @@ def actualizar_planeacion():
                     metadata = upload_planning_to_drive(updated_buffer)
                     page["created"] = created
                     page["already_exists"] = already_exists
-                    page["message"] = f"Se creó la estructura vacía en {len(created)} hoja(s) y se actualizó el archivo de Drive."
+                    page["message"] = f"Se creó la semana siguiente en {len(created)} hoja(s): las combinaciones seleccionadas quedaron vacías y las demás conservaron su contenido. Se actualizó el archivo de Drive."
                 else:
                     page["already_exists"] = already_exists
                     page["message"] = "La siguiente semana ya estaba creada; no se duplicaron filas."
