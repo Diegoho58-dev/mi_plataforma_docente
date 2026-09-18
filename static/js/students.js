@@ -41,7 +41,11 @@
       content.innerHTML = '<div class="student-modal-loading">Cargando información real desde Google Drive…</div>';
       const params = new URLSearchParams({ nombre: button.dataset.name || "", identificacion: button.dataset.identification || "", grupo: button.dataset.group || "" });
       try {
-        const response = await fetch(`${button.dataset.detailUrl}?${params.toString()}`, { headers: { Accept: "application/json" } });
+        const response = await fetch(`${button.dataset.detailUrl}?${params.toString()}`, { credentials: "same-origin", headers: { Accept: "application/json" } });
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          throw new Error(response.redirected ? "La sesión expiró. Vuelve a iniciar sesión." : `El servidor respondió con ${response.status}.`);
+        }
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "No se pudo cargar el detalle.");
         renderStudent(payload.student);
@@ -54,3 +58,4 @@
   document.querySelectorAll("[data-close-student-modal]").forEach((element) => element.addEventListener("click", closeModal));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && modal.classList.contains("is-open")) closeModal(); });
 })();
+
