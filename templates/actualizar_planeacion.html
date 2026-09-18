@@ -6,7 +6,7 @@
 <section class="welcome-section">
   <p class="eyebrow">PLANEACIÓN ACADÉMICA</p>
   <h1>Actualizar la próxima semana</h1>
-  <p class="subtitle">Se creará automáticamente el rango de lunes a viernes. Las materias seleccionadas quedarán listas para diligenciar y las demás conservarán el contenido anterior.</p>
+  <p class="subtitle">Se creará automáticamente el rango de lunes a viernes y se propondrá el siguiente tema de la malla curricular. Las materias seleccionadas se llenarán según el avance real de la última clase.</p>
 </section>
 
 {% if not only_friday %}
@@ -17,10 +17,10 @@
 
 <section class="panel planning-update-panel">
   <div class="panel-heading"><div><h2><span class="heading-icon">▦</span>Materias que deseas actualizar</h2><p class="panel-help">La siguiente semana se crea para Matemáticas y Biología. Selecciona las materias que quedarán vacías para diligenciarlas.</p></div><span class="status-pill {{ 'status-ready' if (is_friday or not only_friday) else 'status-muted' }}">{{ 'Disponible para probar' if not only_friday else ('Disponible hoy' if is_friday else 'Solo viernes') }}</span></div>
-  <div class="data-alert alert-info"><strong>Regla de actualización:</strong> selecciona cada combinación materia-CLEI que vas a trabajar. Esas filas se vacían; las combinaciones no seleccionadas conservan la información de la semana anterior. La columna Aprobación queda resaltada para corregirla o diligenciarla.</div>
+  <div class="data-alert alert-info"><strong>Regla de actualización:</strong> si la última clase fue un repaso, refuerzo o nivelación, se conserva la planeación actual. Si fue una clase de avance, se toma el siguiente tema de las hojas <strong>malla curri mat</strong> o <strong>malla curri bio</strong> del archivo base y se genera una estructura inicial para la clase. Las combinaciones no seleccionadas conservan su contenido anterior.</div>
   <form method="post" class="planning-selection-form" data-selection-form>
     <div class="planning-options">{% for option in options %}<label class="planning-option"><input type="checkbox" name="materia" value="{{ option.value }}" {% if option.value in selected %}checked{% endif %}><span><strong>{{ option.label }}</strong><small>Vaciar esta fila y diligenciarla</small></span></label>{% endfor %}</div>
-    <button class="primary-button action-button" type="submit">Crear próxima semana</button>
+    <button class="primary-button action-button" type="submit">Actualizar con la malla curricular</button>
   </form>
 </section>
 
