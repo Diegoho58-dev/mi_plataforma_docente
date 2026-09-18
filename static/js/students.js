@@ -33,8 +33,10 @@
     document.body.classList.remove("modal-open");
   }
 
-  document.querySelectorAll(".student-detail-trigger").forEach((button) => {
-    button.addEventListener("click", async () => {
+  async function loadStudent(button, event) {
+      if (button.tagName === "A") {
+        event.preventDefault();
+      }
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       document.body.classList.add("modal-open");
@@ -52,10 +54,12 @@
       } catch (error) {
         content.innerHTML = `<div class="student-modal-error">${escapeHtml(error.message)}</div>`;
       }
-    });
+  }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest(".student-detail-trigger");
+    if (button) loadStudent(button, event);
   });
 
   document.querySelectorAll("[data-close-student-modal]").forEach((element) => element.addEventListener("click", closeModal));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && modal.classList.contains("is-open")) closeModal(); });
 })();
-
