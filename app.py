@@ -7,10 +7,10 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 app = Flask(__name__)
 
@@ -32,15 +32,8 @@ COMMUNITY_SHEET_MARKER = "comunidad terapeutica"
 COMMUNITY_NOTES_SHEET_MARKER = "notas com ter"
 CONTEXT_OPTIONS = ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"]
 CYCLE_START = date(2026, 7, 6)
-
-# La conexión se activa si está marcada explícitamente o si Render ya tiene
-# configuradas las credenciales necesarias. Así Seguimiento no queda vacío
-# únicamente porque se olvidó agregar GOOGLE_DRIVE_ENABLED=true.
-DRIVE_ENABLED = (
-    os.environ.get("GOOGLE_DRIVE_ENABLED", "").strip().lower() == "true"
-    or bool(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"))
-    and bool(os.environ.get("GOOGLE_DRIVE_FILE_ID"))
-)
+DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
+PLANNING_ONLY_FRIDAY = os.environ.get("PLANNING_ONLY_FRIDAY", "false").strip().lower() == "true"
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
 
 
@@ -166,6 +159,18 @@ def get_sheets_service():
     return build("sheets", "v4", credentials=credentials, cache_discovery=False), file_id
 
 
+def get_planning_drive_service():
+    """Devuelve el cliente de Drive y el ID del XLSX de planeación."""
+    file_id = os.environ.get("PLANNING_GOOGLE_DRIVE_FILE_ID", DEFAULT_PLANNING_DRIVE_FILE_ID)
+    service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not service_json:
+        raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
+    credentials = service_account.Credentials.from_service_account_info(
+        json.loads(service_json), scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    return build("drive", "v3", credentials=credentials, cache_discovery=False), file_id
+
+
 def planning_update_options():
     return [(subject, clei) for subject in ("Matemáticas", "Biología") for clei in ("CLEI 1", "CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6")]
 
@@ -220,6 +225,111 @@ def download_planning_from_drive():
     """Fuente adicional: planeación, clases, materiales y análisis de planeación."""
     file_id = os.environ.get("PLANNING_GOOGLE_DRIVE_FILE_ID", DEFAULT_PLANNING_DRIVE_FILE_ID)
     return download_drive_file(file_id)
+
+
+def upload_planning_to_drive(buffer):
+    """Actualiza el mismo archivo XLSX de planeación en Drive."""
+    service, file_id = get_planning_drive_service()
+    buffer.seek(0)
+    media = MediaIoBaseUpload(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        resumable=False,
+    )
+    return service.files().update(
+        fileId=file_id,
+        media_body=media,
+        fields="id,name,modifiedTime",
+    ).execute()
+
+
+def planning_sheet_names(selected_subjects):
+    allowed = {"Matemáticas", "Biología"}
+    return [subject for subject in selected_subjects if subject in allowed]
+
+
+def last_planning_block(worksheet):
+    """Encuentra el último bloque de seis filas identificado por 'Semana N'."""
+    matches = []
+    for row_number in range(1, worksheet.max_row + 1):
+        value = clean_text(worksheet.cell(row_number, 2).value)
+        match = re.search(r"semana\s+(\d+)", value, re.IGNORECASE)
+        if match:
+            matches.append((int(match.group(1)), row_number))
+    if not matches:
+        raise RuntimeError(f"No se encontró una fila de semana en la hoja {worksheet.title}.")
+    return max(matches, key=lambda item: (item[0], item[1]))
+
+
+def copy_cell_style(source, target):
+    from copy import copy
+    if source.has_style:
+        target._style = copy(source._style)
+    if source.number_format:
+        target.number_format = source.number_format
+    if source.alignment:
+        target.alignment = copy(source.alignment)
+    if source.protection:
+        target.protection = copy(source.protection)
+
+
+def create_empty_planning_blocks(buffer, selected_subjects):
+    """Crea un bloque vacío de CLEI I-VI por cada materia seleccionada."""
+    from copy import copy
+    from openpyxl import load_workbook
+
+    selected_subjects = planning_sheet_names(selected_subjects)
+    if not selected_subjects:
+        raise ValueError("Selecciona al menos una materia válida.")
+
+    buffer.seek(0)
+    workbook = load_workbook(buffer)
+    created = []
+    already_exists = []
+    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
+
+    for subject in selected_subjects:
+        if subject not in workbook.sheetnames:
+            raise RuntimeError(f"No existe la hoja '{subject}' en el archivo de planeación.")
+        worksheet = workbook[subject]
+        last_week, source_start = last_planning_block(worksheet)
+        source_end = source_start + len(cleis) - 1
+        target_start = source_end + 1
+        target_end = target_start + len(cleis) - 1
+        next_week = last_week + 1
+
+        # Si el bloque siguiente ya contiene la semana, no lo duplica.
+        existing_next = clean_text(worksheet.cell(target_start, 2).value)
+        if re.fullmatch(rf"Semana\s+{next_week}", existing_next, re.IGNORECASE):
+            already_exists.append(f"{subject} / Semana {next_week}")
+            continue
+
+        # Replica estilos, bordes, alineación, alturas y formatos de B:H.
+        for offset, clei in enumerate(cleis):
+            source_row = source_start + offset
+            target_row = target_start + offset
+            worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
+            worksheet.row_dimensions[target_row].hidden = worksheet.row_dimensions[source_row].hidden
+            for column in range(2, 9):
+                copy_cell_style(worksheet.cell(source_row, column), worksheet.cell(target_row, column))
+                worksheet.cell(target_row, column).value = None
+            worksheet.cell(target_row, 4).value = clei
+
+        # La semana y la fecha ocupan verticalmente todo el bloque, como en el archivo original.
+        for merged_range in (f"B{target_start}:B{target_end}", f"C{target_start}:C{target_end}"):
+            worksheet.merge_cells(merged_range)
+        worksheet.cell(target_start, 2).value = f"Semana {next_week}"
+
+        created.append({
+            "subject": subject,
+            "week": next_week,
+            "rows": f"{target_start}-{target_end}",
+        })
+
+    buffer_out = io.BytesIO()
+    workbook.save(buffer_out)
+    buffer_out.seek(0)
+    return buffer_out, created, already_exists
 
 
 def read_planning_rows(buffer):
@@ -437,12 +547,11 @@ def read_student_records(buffer):
         identification_col = find_column(header, ["identificacion", "documento", "cedula", "doc"], 3)
         clei_col = find_column(header, ["clei", "nivel"], 4)
         group_col = find_column(header, ["grupo"], 5)
-        math_attendance_col = find_column(header, ["asistencia matematicas", "asistio matematicas", "matematicas asistencia", "matematicas asistio", "matematicas presente", "presente matematicas", "mate asistencia", "mate asistio"], 8)
+        math_attendance_col = find_column(header, ["asistencia matematicas", "asistio matematicas", "matematicas asistencia", "matematicas asistio", "matematicas presente", "mate asistencia"], 8)
         math_grade_col = find_column(header, ["nota matematicas", "calificacion matematicas", "matematicas nota", "matematicas calificacion", "matematicas promedio"], 9)
-        science_attendance_col = find_column(header, ["asistencia ciencias", "asistio ciencias", "ciencias asistencia", "ciencias asistio", "ciencias presente", "presente ciencias", "ciencias naturales asistencia", "ciencias naturales asistio"], 6)
+        science_attendance_col = find_column(header, ["asistencia ciencias", "asistio ciencias", "ciencias asistencia", "ciencias asistio", "ciencias presente", "ciencias naturales asistencia"], 6)
         science_grade_col = find_column(header, ["nota ciencias", "calificacion ciencias", "ciencias nota", "ciencias calificacion", "ciencias naturales nota", "ciencias naturales promedio"], 7)
         observation_col = find_column(header, ["observacion", "observaciones"], 10)
-        patio_col = find_column(header, ["patio", "numero de patio", "número de patio"], None)
         for row in rows:
             values = list(row)
             if not any(clean_text(value) for value in values):
@@ -474,7 +583,6 @@ def read_student_records(buffer):
                 "math_attendance": clean_text(get(math_attendance_col)),
                 "math_grade": clean_text(get(math_grade_col)),
                 "observation": clean_text(get(observation_col)),
-                "patio": clean_text(get(patio_col)),
             })
     return records
 
@@ -685,32 +793,29 @@ def grupos():
 @app.route("/actualizar-planeacion", methods=["GET", "POST"])
 @login_required
 def actualizar_planeacion():
-    options=planning_update_options()
+    options = ["Matemáticas", "Biología"]
     today=colombia_today()
     friday=today.weekday()==4
-    page={"options": options, "selected": [], "proposal": [], "week_number": None, "error": None, "message": None, "is_friday": friday}
+    page={"options": options, "selected": [], "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
-        buffer, _ = download_planning_from_drive()
-        all_rows=read_additional_planning_rows(buffer)
         if request.method == "POST":
-            if request.form.get("action") == "confirm":
-                if not friday:
-                    page["error"]="La actualización solo puede confirmarse los viernes."
-                elif not request.form.get("confirmar"):
-                    page["error"]="Marca la confirmación para escribir la propuesta en Google Drive."
-                else:
-                    payload=json.loads(request.form.get("proposal_json", "[]"))
-                    written=append_planning_rows(payload)
-                    page["message"]=f"Actualización guardada en Google Drive: {len(written)} combinación(es)."
+            selected = planning_sheet_names(request.form.getlist("materia"))
+            page["selected"] = selected
+            if not selected:
+                page["error"] = "Selecciona al menos una materia para crear la nueva estructura."
+            elif PLANNING_ONLY_FRIDAY and not friday:
+                page["error"] = "La actualización solo puede confirmarse los viernes."
             else:
-                selected=[]
-                for raw in request.form.getlist("clase"):
-                    subject, clei=raw.split("|",1)
-                    if (subject, clei) in options:selected.append((subject, clei))
-                week, proposal=build_weekly_proposal(all_rows, selected)
-                page.update({"selected": selected, "proposal": proposal, "week_number": week})
-                if not friday: page["error"]="La propuesta se puede consultar, pero solo se puede confirmar los viernes."
-                if not selected: page["error"]="Selecciona al menos una materia y CLEI según el horario de la próxima semana."
+                buffer, _ = download_planning_from_drive()
+                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected)
+                if created:
+                    metadata = upload_planning_to_drive(updated_buffer)
+                    page["created"] = created
+                    page["already_exists"] = already_exists
+                    page["message"] = f"Se creó la estructura vacía en {len(created)} hoja(s) y se actualizó el archivo de Drive."
+                else:
+                    page["already_exists"] = already_exists
+                    page["message"] = "La siguiente semana ya estaba creada; no se duplicaron filas."
         return render_template("actualizar_planeacion.html", current_user=session.get("user"), **page)
     except Exception as exc:
         app.logger.exception("No se pudo preparar la actualización semanal")
@@ -756,7 +861,7 @@ def estudiantes():
                 continue
             key = (item["name"], item["identification"], item["group"])
             student = unique.setdefault(key, {
-                "name": item["name"], "identification": item["identification"], "group": item["group"], "clei": item["clei"],
+                "name": item["name"], "group": item["group"], "clei": item["clei"],
                 "context": item["context"], "dates": set(), "math_grades": [], "science_grades": [],
             })
             if item["date"]:
@@ -785,89 +890,12 @@ def estudiantes():
         return render_template("estudiantes.html", current_user=session.get("user"), **page_data)
 
 
-@app.route("/api/estudiantes/detalle")
-@login_required
-def student_detail():
-    if not DRIVE_ENABLED:
-        return jsonify({"error": "La conexión con Google Drive está pausada."}), 503
-    name = clean_text(request.args.get("nombre", ""))
-    identification = clean_text(request.args.get("identificacion", ""))
-    group = clean_text(request.args.get("grupo", ""))
-    if not name:
-        return jsonify({"error": "Falta el nombre del estudiante."}), 400
-    try:
-        buffer, _ = download_excel_from_drive()
-        records = read_student_records(buffer)
-        matches = [
-            item for item in records
-            if item["name"] == name
-            and (not identification or item["identification"] == identification)
-            and (not group or item["group"] == group)
-        ]
-        if not matches:
-            return jsonify({"error": "No se encontró información para este estudiante."}), 404
-        first = matches[0]
-        def numeric_grades(field):
-            values = []
-            for item in matches:
-                try:
-                    values.append(float(item[field].replace(",", ".")))
-                except (AttributeError, TypeError, ValueError):
-                    pass
-            return values
-        math_grades = numeric_grades("math_grade")
-        science_grades = numeric_grades("science_grade")
-        sessions = []
-        observations = []
-        for item in sorted(matches, key=lambda row: row["date"] or date.min, reverse=True):
-            if item["observation"] and item["observation"] not in observations:
-                observations.append(item["observation"])
-            if not item["date"]:
-                continue
-            sessions.append({
-                "date": item["date_label"],
-                "context": item["context"],
-                "group": item["group"],
-                "math_attendance": attendance_value(item["math_attendance"]) if item["math_attendance"] else "Sin registro",
-                "math_grade": item["math_grade"] or "—",
-                "science_attendance": attendance_value(item["science_attendance"]) if item["science_attendance"] else "Sin registro",
-                "science_grade": item["science_grade"] or "—",
-                "observation": item["observation"] or "—",
-            })
-        math_present = sum(attendance_value(item["math_attendance"]) == "Asistió" for item in matches if item["math_attendance"])
-        math_absent = sum(attendance_value(item["math_attendance"]) == "No asistió" for item in matches if item["math_attendance"])
-        science_present = sum(attendance_value(item["science_attendance"]) == "Asistió" for item in matches if item["science_attendance"])
-        science_absent = sum(attendance_value(item["science_attendance"]) == "No asistió" for item in matches if item["science_attendance"])
-        total_present = math_present + science_present
-        total_absent = math_absent + science_absent
-        total_sessions = total_present + total_absent
-        return jsonify({
-            "student": {
-                "name": first["name"], "identification": first["identification"] or "No registrada",
-                "patio": next((item["patio"] for item in matches if item["patio"]), "No registrado"),
-                "group": first["group"], "clei": first["clei"], "context": first["context"],
-                "sessions": len({item["date"] for item in matches if item["date"]}),
-                "math_present": math_present, "math_absent": math_absent,
-                "science_present": science_present, "science_absent": science_absent,
-                "total_present": total_present, "total_absent": total_absent,
-                "attendance_rate": round(total_present * 100 / total_sessions, 1) if total_sessions else 0,
-                "math_average": round(sum(math_grades) / len(math_grades), 2) if math_grades else None,
-                "science_average": round(sum(science_grades) / len(science_grades), 2) if science_grades else None,
-                "observations": observations,
-                "sessions_detail": sessions,
-            }
-        })
-    except Exception:
-        app.logger.exception("No se pudo preparar el detalle del estudiante")
-        return jsonify({"error": "No se pudo leer el detalle desde Google Drive."}), 500
-
-
 
 def attendance_value(value):
     text = clean_text(value).lower()
-    if text in {"si", "sí", "s", "1", "true", "x", "a", "asistio", "asistió", "presente", "presencial", "p", "asistencia", "asistio a clase", "asistió a clase"}:
+    if text in {"si", "sí", "s", "asistio", "asistió", "presente", "p"}:
         return "Asistió"
-    if text in {"no", "n", "0", "false", "f", "ausente", "inasistente", "in asistencia", "i", "falta", "faltó", "falto", "no asistio", "no asistió"}:
+    if text in {"no", "n", "ausente", "inasistente", "i"}:
         return "No asistió"
     return clean_text(value) or "Sin registro"
 
@@ -1058,8 +1086,7 @@ def seguimiento():
         "stats": {
             "classes": 0, "students": 0, "groups": 0, "attendance_rate": 0,
             "math_rate": 0, "science_rate": 0, "math_average": None, "science_average": None,
-            "risk_count": 0, "total_sessions": 0, "total_present": 0, "total_absent": 0,
-            "math_sessions": 0, "science_sessions": 0,
+            "risk_count": 0,
         },
         "chart_data": json.dumps({"dates": [], "math": [], "science": [], "contexts": [], "risks": []}),
         "interpretations": [], "risk_students": [], "data_error": None,
@@ -1137,7 +1164,6 @@ def seguimiento():
             if grades["science"]: averages.append(f"Ciencias Naturales {sum(grades['science']) / len(grades['science']):.2f}")
             interpretations.append("Promedios de calificación registrados: " + " y ".join(averages) + ".")
         chart_data = {
-            "attendance_summary": {"present": total_present, "absent": total_sessions - total_present},
             "dates": [item[1]["label"] for item in date_items],
             "math": [{"present": item[1]["math_present"], "absent": item[1]["math_absent"]} for item in date_items],
             "science": [{"present": item[1]["science_present"], "absent": item[1]["science_absent"]} for item in date_items],
@@ -1145,7 +1171,7 @@ def seguimiento():
             "risks": [{"label": item["name"], "value": item["absent"]} for item in risk_students[:8]],
         }
         page_data.update({
-            "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len(risk_students), "total_sessions": total_sessions, "total_present": total_present, "total_absent": total_sessions - total_present, "math_sessions": attendance["math"]["sessions"], "science_sessions": attendance["science"]["sessions"]},
+            "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len(risk_students)},
             "chart_data": json.dumps(chart_data, ensure_ascii=False), "interpretations": interpretations, "risk_students": risk_students, "drive_updated": metadata.get("modifiedTime", ""),
         })
         return render_template("seguimiento.html", current_user=session.get("user"), **page_data)
