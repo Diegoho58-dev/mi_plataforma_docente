@@ -1,3 +1,4 @@
+
 import io
 import json
 import os
@@ -272,6 +273,20 @@ def normalize_clei(value):
     return aliases.get(text, clean_text(value).upper())
 
 
+def clei_key(value):
+    """Devuelve una clave numérica para CLEI 3/CLEI III y variantes equivalentes."""
+    text = normalize_header(value).replace(" ", "")
+    if "5-6" in text or "v-vi" in text:
+        return "5-6"
+    suffix = text[4:] if text.startswith("clei") else text
+    suffix = suffix.rstrip("ab")
+    roman = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6"}
+    if suffix in roman:
+        return roman[suffix]
+    match = re.match(r"(\d+)", suffix)
+    return match.group(1) if match else text
+
+
 def curriculum_sheet_for_subject(workbook, subject):
     aliases = ("malla currimat", "mat") if subject == "Matemáticas" else ("malla curribio", "bio")
     for name in workbook.sheetnames:
@@ -291,10 +306,20 @@ def read_curriculum(buffer):
         worksheet = curriculum_sheet_for_subject(workbook, subject)
         if worksheet is None:
             continue
-        headers = {normalize_header(value): index for index, value in enumerate(next(worksheet.iter_rows(values_only=True)), start=1) if value}
+        header_row = None
+        header_values = None
+        for row_number, row in enumerate(worksheet.iter_rows(min_row=1, max_row=min(worksheet.max_row, 15), values_only=True), start=1):
+            normalized_values = [normalize_header(value) for value in row]
+            if any(any(word in value for word in ("tema", "tematica", "contenido", "unidad")) for value in normalized_values):
+                header_row, header_values = row_number, row
+                break
+        if not header_values:
+            header_row, header_values = 1, next(worksheet.iter_rows(values_only=True))
+        headers = {normalize_header(value): index for index, value in enumerate(header_values, start=1) if value}
         topic_col = next((index for header, index in headers.items() if any(word in header for word in ("tema", "tematica", "contenido", "unidad"))), None)
         pages_col = next((index for header, index in headers.items() if any(word in header for word in ("pagina", "paginas", "libro"))), None)
-        for row in worksheet.iter_rows(min_row=2, values_only=True):
+        clei_col = next((index for header, index in headers.items() if any(word in header for word in ("clei", "grado", "grupo"))), None)
+        for row in worksheet.iter_rows(min_row=header_row + 1, values_only=True):
             values = [clean_text(value) for value in row]
             topic = values[topic_col - 1] if topic_col and topic_col <= len(values) else ""
             if not topic:
@@ -303,7 +328,8 @@ def read_curriculum(buffer):
             if not topic or topic.lower() in {"tema", "temática", "contenido"}:
                 continue
             pages = values[pages_col - 1] if pages_col and pages_col <= len(values) else ""
-            result[subject].append({"topic": topic, "pages": pages})
+            clei = values[clei_col - 1] if clei_col and clei_col <= len(values) else ""
+            result[subject].append({"topic": topic, "pages": pages, "clei": clei})
     return result
 
 
@@ -312,9 +338,13 @@ def is_review_class(*values):
     return any(marker in text for marker in ("repaso", "refuerzo", "nivelacion", "nivelación", "retroalimentacion", "retroalimentación"))
 
 
-def next_curriculum_topic(curriculum, previous_topic):
+def next_curriculum_topic(curriculum, previous_topic, clei=""):
     if not curriculum:
         return None
+    normalized_clei = normalize_clei(clei)
+    scoped = [item for item in curriculum if not item.get("clei") or normalize_clei(item["clei"]) == normalized_clei]
+    if scoped:
+        curriculum = scoped
     normalized_previous = normalize_header(previous_topic)
     for index, item in enumerate(curriculum):
         if normalize_header(item["topic"]) == normalized_previous:
@@ -441,17 +471,17 @@ def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None):
                 target_cell = worksheet.cell(target_row, column)
                 copy_cell_style(source_cell, target_cell)
                 selected_clei = selected_map.get(subject, set())
-                selected_row = "*" in selected_clei or normalize_clei(worksheet.cell(source_row, 4).value) in selected_clei
+                selected_row = "*" in selected_clei or any(clei_key(worksheet.cell(source_row, 4).value) == clei_key(item) for item in selected_clei)
                 target_cell.value = source_cell.value
                 if selected_row and column in (5, 6, 7, 8, 9):
                     target_cell.value = None
             worksheet.cell(target_row, 4).value = clei
             selected_clei = selected_map.get(subject, set())
-            selected_row = "*" in selected_clei or normalize_clei(worksheet.cell(source_row, 4).value) in selected_clei
+            selected_row = "*" in selected_clei or any(clei_key(worksheet.cell(source_row, 4).value) == clei_key(item) for item in selected_clei)
             previous_topic = worksheet.cell(source_row, 5).value
             review = is_review_class(previous_topic, worksheet.cell(source_row, 7).value, worksheet.cell(source_row, 8).value)
             if selected_row and not review:
-                next_topic = next_curriculum_topic(curriculum.get(subject, []), previous_topic)
+                next_topic = next_curriculum_topic(curriculum.get(subject, []), previous_topic, worksheet.cell(source_row, 4).value)
                 if next_topic:
                     target_cell = worksheet.cell(target_row, 5)
                     target_cell.value = next_topic["topic"]
