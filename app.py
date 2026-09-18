@@ -1093,7 +1093,17 @@ def student_detail():
         name = clean_text(request.args.get("nombre", ""))
         identification = clean_text(request.args.get("identificacion", ""))
         group = clean_text(request.args.get("grupo", ""))
-        records = [item for item in read_student_records(buffer) if (not name or item["name"] == name) and (not identification or item["identification"] == identification) and (not group or item["group"] == group)]
+        def key(value):
+            return re.sub(r"[^a-z0-9]", "", normalize_header(value))
+        all_records = read_student_records(buffer)
+        # Primero se usa nombre + grupo, que son los datos visibles en la tabla.
+        records = [item for item in all_records if (not name or key(item["name"]) == key(name)) and (not group or key(item["group"]) == key(group))]
+        # La identificación puede venir numérica desde Excel y como texto desde HTML;
+        # solo se aplica como filtro adicional si realmente encuentra coincidencias.
+        if identification:
+            with_id = [item for item in records if key(item["identification"]) == key(identification)]
+            if with_id:
+                records = with_id
         if not records:
             return jsonify({"error": "No se encontraron registros para este estudiante."}), 404
         observations, sessions, math_grades, science_grades = [], [], [], []
