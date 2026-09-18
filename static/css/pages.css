@@ -93,4 +93,3 @@
 .duplicate-list { margin: 12px 0 0; color: #7a5a13; font-size: 12px; }
 .duplicate-list li { margin: 5px 0; }
 @media (max-width: 620px) { .creation-result { flex-direction: column; gap: 3px; } }
-
