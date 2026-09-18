@@ -251,12 +251,25 @@ def planning_sheet_names(selected_subjects):
 def planning_selection_map(values):
     """Convierte valores materia::CLEI en {materia: {CLEI...}}."""
     result = {}
-    cleis = {"CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"}
+    cleis = {"CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI", "CLEI 1", "CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5", "CLEI 6", "CLEI 5-6"}
     for value in values:
         subject, separator, clei = clean_text(value).partition("::")
         if subject in {"Matemáticas", "Biología"} and (not separator or clei in cleis):
-            result.setdefault(subject, set()).add(clei if separator else "*")
+            result.setdefault(subject, set()).add(normalize_clei(clei) if separator else "*")
     return result
+
+
+def normalize_clei(value):
+    text = normalize_header(value).replace(" ", "")
+    aliases = {
+        "clei1": "CLEI I", "cleii": "CLEI I",
+        "clei2": "CLEI II", "cleiii": "CLEI II",
+        "cleiiii": "CLEI III", "clei3": "CLEI III", "cleiiv": "CLEI IV",
+        "clei4": "CLEI IV", "cleiv": "CLEI V",
+        "clei5": "CLEI V", "cleivi": "CLEI VI",
+        "clei6": "CLEI VI", "clei5-6": "CLEI V-VI",
+    }
+    return aliases.get(text, clean_text(value).upper())
 
 
 def curriculum_sheet_for_subject(workbook, subject):
@@ -428,13 +441,13 @@ def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None):
                 target_cell = worksheet.cell(target_row, column)
                 copy_cell_style(source_cell, target_cell)
                 selected_clei = selected_map.get(subject, set())
-                selected_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
+                selected_row = "*" in selected_clei or normalize_clei(worksheet.cell(source_row, 4).value) in selected_clei
                 target_cell.value = source_cell.value
                 if selected_row and column in (5, 6, 7, 8, 9):
                     target_cell.value = None
             worksheet.cell(target_row, 4).value = clei
             selected_clei = selected_map.get(subject, set())
-            selected_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
+            selected_row = "*" in selected_clei or normalize_clei(worksheet.cell(source_row, 4).value) in selected_clei
             previous_topic = worksheet.cell(source_row, 5).value
             review = is_review_class(previous_topic, worksheet.cell(source_row, 7).value, worksheet.cell(source_row, 8).value)
             if selected_row and not review:
