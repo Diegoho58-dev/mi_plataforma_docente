@@ -5,65 +5,27 @@
 {% block content %}
 <section class="welcome-section">
   <p class="eyebrow">PLANEACIÓN ACADÉMICA</p>
-  <h1>Crear estructura de planeación</h1>
-  <p class="subtitle">Selecciona las materias y crea el siguiente bloque vacío con el mismo formato del archivo de Drive.</p>
+  <h1>Actualizar la próxima semana</h1>
+  <p class="subtitle">Se creará automáticamente el rango de lunes a viernes. Las materias seleccionadas quedarán listas para diligenciar y las demás conservarán el contenido anterior.</p>
 </section>
 
 {% if not only_friday %}
-<div class="data-alert alert-info" role="status">
-  <strong>Modo de pruebas activo.</strong>
-  Puedes crear la estructura cualquier día. Más adelante podrás volver a limitar esta acción a los viernes.
-</div>
+<div class="data-alert alert-info" role="status"><strong>Modo de pruebas activo.</strong> Puedes crear la estructura cualquier día. Cuando finalicen las pruebas, activa la restricción de viernes en Render.</div>
 {% endif %}
-
 {% if error %}<div class="data-alert alert-error" role="alert">{{ error }}</div>{% endif %}
 {% if message %}<div class="data-alert alert-success" role="status">{{ message }}</div>{% endif %}
 
 <section class="panel planning-update-panel">
-  <div class="panel-heading">
-    <div>
-      <h2><span class="heading-icon">▦</span>Materias que deseas avanzar</h2>
-      <p class="panel-help">Se crearán seis filas por materia: CLEI I, II, III, IV, V y VI.</p>
-    </div>
-    <span class="status-pill {{ 'status-ready' if (is_friday or not only_friday) else 'status-muted' }}">
-      {{ 'Disponible para probar' if not only_friday else ('Disponible hoy' if is_friday else 'Solo viernes') }}
-    </span>
-  </div>
-
+  <div class="panel-heading"><div><h2><span class="heading-icon">▦</span>Materias que deseas actualizar</h2><p class="panel-help">La siguiente semana se crea para Matemáticas y Biología. Selecciona las materias que quedarán vacías para diligenciarlas.</p></div><span class="status-pill {{ 'status-ready' if (is_friday or not only_friday) else 'status-muted' }}">{{ 'Disponible para probar' if not only_friday else ('Disponible hoy' if is_friday else 'Solo viernes') }}</span></div>
+  <div class="data-alert alert-info"><strong>Regla de actualización:</strong> selecciona cada combinación materia-CLEI que vas a trabajar. Esas filas se vacían; las combinaciones no seleccionadas conservan la información de la semana anterior. La columna Aprobación queda resaltada para corregirla o diligenciarla.</div>
   <form method="post" class="planning-selection-form" data-selection-form>
-    <div class="planning-options">
-      {% for subject in options %}
-      <label class="planning-option">
-        <input type="checkbox" name="materia" value="{{ subject }}" {% if subject in selected %}checked{% endif %}>
-        <span><strong>{{ subject }}</strong><small>Crear siguiente semana en esta hoja</small></span>
-      </label>
-      {% endfor %}
-    </div>
-    <button class="primary-button action-button" type="submit">Planear</button>
+    <div class="planning-options">{% for option in options %}<label class="planning-option"><input type="checkbox" name="materia" value="{{ option.value }}" {% if option.value in selected %}checked{% endif %}><span><strong>{{ option.label }}</strong><small>Vaciar esta fila y diligenciarla</small></span></label>{% endfor %}</div>
+    <button class="primary-button action-button" type="submit">Crear próxima semana</button>
   </form>
 </section>
 
-{% if created %}
-<section class="panel proposal-panel">
-  <h2><span class="heading-icon">✓</span>Estructura creada</h2>
-  <p class="panel-help">El archivo fue actualizado y las celdas quedaron vacías para diligenciarlas.</p>
-  <div class="creation-results">
-    {% for item in created %}
-    <div class="creation-result"><strong>{{ item.subject }}</strong><span>Semana {{ item.week }} · filas {{ item.rows }}</span></div>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
-
-{% if already_exists %}
-<section class="panel duplicate-panel">
-  <h2><span class="heading-icon">i</span>Sin duplicados</h2>
-  <p class="panel-help">Estas estructuras ya existían y no se volvieron a crear:</p>
-  <ul class="duplicate-list">{% for item in already_exists %}<li>{{ item }}</li>{% endfor %}</ul>
-</section>
-{% endif %}
+{% if created %}<section class="panel proposal-panel"><h2><span class="heading-icon">✓</span>Semana creada</h2><p class="panel-help">Se generó el rango de lunes a viernes. Las materias seleccionadas están vacías y las demás conservaron el contenido anterior.</p><div class="creation-results">{% for item in created %}<div class="creation-result"><strong>{{ item.subject }}</strong><span>Semana {{ item.week }} · filas {{ item.rows }}{% if item.date_range %} · {{ item.date_range }}{% endif %}</span></div>{% endfor %}</div></section>{% endif %}
+{% if already_exists %}<section class="panel duplicate-panel"><h2><span class="heading-icon">i</span>Sin duplicados</h2><p class="panel-help">Estas estructuras ya existían y no se volvieron a crear:</p><ul class="duplicate-list">{% for item in already_exists %}<li>{{ item }}</li>{% endfor %}</ul></section>{% endif %}
 {% endblock %}
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/planning-update.js') }}" defer></script>
-{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/planning-update.js') }}" defer></script>{% endblock %}
