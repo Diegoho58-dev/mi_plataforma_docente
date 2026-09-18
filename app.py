@@ -259,6 +259,67 @@ def planning_selection_map(values):
     return result
 
 
+def curriculum_sheet_for_subject(workbook, subject):
+    aliases = ("malla currimat", "mat") if subject == "Matemáticas" else ("malla curribio", "bio")
+    for name in workbook.sheetnames:
+        normalized = normalize_header(name).replace(" ", "")
+        if any(alias in normalized for alias in aliases):
+            return workbook[name]
+    return None
+
+
+def read_curriculum(buffer):
+    """Lee las mallas mat/bio del archivo base sin modificarlo."""
+    from openpyxl import load_workbook
+    buffer.seek(0)
+    workbook = load_workbook(buffer, data_only=True, read_only=False)
+    result = {"Matemáticas": [], "Biología": []}
+    for subject in result:
+        worksheet = curriculum_sheet_for_subject(workbook, subject)
+        if worksheet is None:
+            continue
+        headers = {normalize_header(value): index for index, value in enumerate(next(worksheet.iter_rows(values_only=True)), start=1) if value}
+        topic_col = next((index for header, index in headers.items() if any(word in header for word in ("tema", "tematica", "contenido", "unidad"))), None)
+        pages_col = next((index for header, index in headers.items() if any(word in header for word in ("pagina", "paginas", "libro"))), None)
+        for row in worksheet.iter_rows(min_row=2, values_only=True):
+            values = [clean_text(value) for value in row]
+            topic = values[topic_col - 1] if topic_col and topic_col <= len(values) else ""
+            if not topic:
+                candidates = [value for value in values if value and len(value) < 180]
+                topic = candidates[-1] if candidates else ""
+            if not topic or topic.lower() in {"tema", "temática", "contenido"}:
+                continue
+            pages = values[pages_col - 1] if pages_col and pages_col <= len(values) else ""
+            result[subject].append({"topic": topic, "pages": pages})
+    return result
+
+
+def is_review_class(*values):
+    text = normalize_header(" ".join(clean_text(value) for value in values if value))
+    return any(marker in text for marker in ("repaso", "refuerzo", "nivelacion", "nivelación", "retroalimentacion", "retroalimentación"))
+
+
+def next_curriculum_topic(curriculum, previous_topic):
+    if not curriculum:
+        return None
+    normalized_previous = normalize_header(previous_topic)
+    for index, item in enumerate(curriculum):
+        if normalize_header(item["topic"]) == normalized_previous:
+            return curriculum[index + 1] if index + 1 < len(curriculum) else None
+    return curriculum[0]
+
+
+def generated_class_content(subject, clei, topic):
+    return (
+        f"Objetivo: desarrollar la comprensión de {topic.lower()} en {clei}. "
+        f"Fase inicial: se activan los saberes previos mediante preguntas relacionadas con {topic.lower()}. "
+        f"Desarrollo: el docente explica los conceptos centrales, utiliza ejemplos y verifica la comprensión del grupo. "
+        "Cierre: los estudiantes socializan lo aprendido y reciben retroalimentación."
+    ), (
+        f"Actividad con el monitor: elaborar un ejemplo o representación de {topic.lower()}, responder preguntas de comprensión y socializar las conclusiones."
+    )
+
+
 def last_planning_block(worksheet):
     """Encuentra el último bloque de seis filas identificado por 'Semana N'."""
     matches = []
@@ -319,8 +380,8 @@ def planning_range_label(start, end):
     return f"Del {start.day} de {months[start.month - 1]} al {end.day} de {months[end.month - 1]}"
 
 
-def create_empty_planning_blocks(buffer, selected_subjects):
-    """Crea la semana siguiente: vacía la materia elegida y conserva las demás."""
+def create_empty_planning_blocks(buffer, selected_subjects, curriculum=None):
+    """Crea la semana siguiente usando el siguiente tema de mat/bio cuando corresponde."""
     from copy import copy
     from openpyxl.styles import PatternFill
     from openpyxl import load_workbook
@@ -334,6 +395,7 @@ def create_empty_planning_blocks(buffer, selected_subjects):
     created = []
     already_exists = []
     cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
+    curriculum = curriculum or {"Matemáticas": [], "Biología": []}
 
     available_subjects = [subject for subject in ("Matemáticas", "Biología") if subject in workbook.sheetnames]
     for subject in available_subjects:
@@ -366,9 +428,29 @@ def create_empty_planning_blocks(buffer, selected_subjects):
                 target_cell = worksheet.cell(target_row, column)
                 copy_cell_style(source_cell, target_cell)
                 selected_clei = selected_map.get(subject, set())
-                clear_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
-                target_cell.value = None if clear_row else source_cell.value
+                selected_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
+                target_cell.value = source_cell.value
+                if selected_row and column in (5, 6, 7, 8, 9):
+                    target_cell.value = None
             worksheet.cell(target_row, 4).value = clei
+            selected_clei = selected_map.get(subject, set())
+            selected_row = "*" in selected_clei or clean_text(worksheet.cell(source_row, 4).value) in selected_clei
+            previous_topic = worksheet.cell(source_row, 5).value
+            review = is_review_class(previous_topic, worksheet.cell(source_row, 7).value, worksheet.cell(source_row, 8).value)
+            if selected_row and not review:
+                next_topic = next_curriculum_topic(curriculum.get(subject, []), previous_topic)
+                if next_topic:
+                    target_cell = worksheet.cell(target_row, 5)
+                    target_cell.value = next_topic["topic"]
+                    worksheet.cell(target_row, 6).value = next_topic.get("pages", "")
+                    development, activity = generated_class_content(subject, clei, next_topic["topic"])
+                    worksheet.cell(target_row, 7).value = development
+                    worksheet.cell(target_row, 8).value = activity
+            elif selected_row and review:
+                worksheet.cell(target_row, 5).value = previous_topic
+                worksheet.cell(target_row, 6).value = worksheet.cell(source_row, 6).value
+                worksheet.cell(target_row, 7).value = worksheet.cell(source_row, 7).value
+                worksheet.cell(target_row, 8).value = worksheet.cell(source_row, 8).value
 
             # La columna I corresponde a Aprobación. Se deja visible y resaltada
             # para que pueda diligenciarse/corregirse en la nueva semana.
@@ -869,12 +951,16 @@ def actualizar_planeacion():
                 page["error"] = "La actualización solo puede confirmarse los viernes."
             else:
                 buffer, _ = download_planning_from_drive()
-                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected)
+                base_buffer, _ = download_excel_from_drive()
+                curriculum = read_curriculum(base_buffer)
+                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected, curriculum)
                 if created:
                     metadata = upload_planning_to_drive(updated_buffer)
                     page["created"] = created
                     page["already_exists"] = already_exists
-                    page["message"] = f"Se creó la semana siguiente en {len(created)} hoja(s): las combinaciones seleccionadas quedaron vacías y las demás conservaron su contenido. Se actualizó el archivo de Drive."
+                    missing = [subject for subject, topics in curriculum.items() if not topics]
+                    warning = f" Aviso: no se encontró la hoja de malla para {', '.join(missing)}." if missing else ""
+                    page["message"] = f"Se creó la semana siguiente en {len(created)} hoja(s), usando la malla y la regla de repaso. Las combinaciones seleccionadas quedaron diligenciadas y las demás conservaron su contenido. Se actualizó el archivo de Drive.{warning}"
                 else:
                     page["already_exists"] = already_exists
                     page["message"] = "La siguiente semana ya estaba creada; no se duplicaron filas."
