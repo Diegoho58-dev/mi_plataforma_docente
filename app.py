@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, render_template_string, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -1126,6 +1126,8 @@ def student_detail():
         total_absent = math_absent + science_absent
         total_sessions = total_present + total_absent
         student = {"name": records[0]["name"], "identification": records[0]["identification"] or "—", "patio": "—", "group": records[0]["group"], "context": records[0]["context"], "clei": records[0]["clei"], "observations": observations, "sessions_detail": sessions, "sessions": len(sessions), "total_present": total_present, "total_absent": total_absent, "attendance_rate": round(total_present * 100 / total_sessions, 1) if total_sessions else 0, "math_present": math_present, "math_absent": math_absent, "science_present": science_present, "science_absent": science_absent, "math_average": round(sum(math_grades) / len(math_grades), 2) if math_grades else None, "science_average": round(sum(science_grades) / len(science_grades), 2) if science_grades else None}
+        if request.args.get("vista") == "pagina":
+            return render_template_string("""<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Detalle de estudiante</title><style>body{font-family:Arial,sans-serif;background:#f3f6f8;color:#20313b;margin:0;padding:28px}.card{max-width:980px;margin:auto;background:white;border-radius:16px;padding:28px;box-shadow:0 8px 30px #17324a18}h1{margin:0 0 8px;color:#164e63}.meta{color:#62737d;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.metric,.block{border:1px solid #dce7eb;border-radius:10px;padding:14px;margin-top:14px}.metric strong{display:block;font-size:22px;color:#087f8c}.block h2{font-size:18px;margin:0 0 10px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #e5ecef;text-align:left;padding:9px;vertical-align:top}th{color:#315765;background:#f6fafb}</style></head><body><main class='card'><h1>{{ student.name }}</h1><div class='meta'>{{ student.context }} · {{ student.group }} · CLEI {{ student.clei }}</div><section class='grid'><div class='metric'><strong>{{ student.identification }}</strong>Documento</div><div class='metric'><strong>{{ student.attendance_rate }}%</strong>Asistencia global</div><div class='metric'><strong>{{ student.total_present }}</strong>Asistencias</div><div class='metric'><strong>{{ student.total_absent }}</strong>Inasistencias</div><div class='metric'><strong>{{ student.math_average or '—' }}</strong>Promedio Matemáticas</div><div class='metric'><strong>{{ student.science_average or '—' }}</strong>Promedio Ciencias</div></section><section class='block'><h2>Observaciones</h2>{% if student.observations %}<ul>{% for item in student.observations %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p>No hay observaciones registradas.</p>{% endif %}</section><section class='block'><h2>Historial</h2><table><thead><tr><th>Fecha</th><th>Matemáticas</th><th>Nota</th><th>Ciencias</th><th>Nota</th><th>Observación</th></tr></thead><tbody>{% for item in student.sessions_detail %}<tr><td>{{ item.date }}</td><td>{{ item.math_attendance }}</td><td>{{ item.math_grade }}</td><td>{{ item.science_attendance }}</td><td>{{ item.science_grade }}</td><td>{{ item.observation }}</td></tr>{% endfor %}</tbody></table></section></main></body></html>""", student=student)
         return jsonify({"student": student})
     except Exception:
         app.logger.exception("No se pudo cargar el detalle del estudiante")
@@ -1522,5 +1524,3 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
-
