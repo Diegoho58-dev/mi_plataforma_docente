@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, make_response, redirect, render_template, request, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -565,12 +565,14 @@ def read_additional_planning_rows(buffer):
         subject = "Matemáticas" if subject_key == "matematicas" else ("Biología" if subject_key == "biologia" else "Ciencias Naturales")
         current_week = ""
         current_range = ""
+        block_rows_seen = 0
         for row in worksheet.iter_rows(values_only=True):
             values = list(row)
             cells = [clean_text(value) for value in values]
             if len(cells) > 1 and re.match(r"^semana\s+\d+", cells[1], re.IGNORECASE):
                 current_week = cells[1]
                 current_range = cells[2] if len(cells) > 2 else ""
+                block_rows_seen = 0
             # Formato real: columna D = CLEI, E = tema, G = objetivo, H = actividad, I = estado.
             group = cells[3] if len(cells) > 3 else ""
             theme = cells[4] if len(cells) > 4 else ""
@@ -578,9 +580,12 @@ def read_additional_planning_rows(buffer):
             activity = cells[7] if len(cells) > 7 else ""
             status = cells[8] if len(cells) > 8 else ""
             group = normalize_planning_clei(group)
+            if group:
+                block_rows_seen += 1
             # Los bloques recién creados tienen el CLEI pero todavía no tienen
-            # tema. Deben seguir visibles para confirmar que la semana existe.
-            if not group or not current_week:
+            # tema. Deben seguir visibles si aún conservan su encabezado.
+            # Si el encabezado fue borrado manualmente, no heredamos la semana anterior.
+            if not group or not current_week or block_rows_seen > 6:
                 continue
             if not theme:
                 theme = "Pendiente por diligenciar"
@@ -1525,7 +1530,10 @@ def planeacion():
             if item.get("group") in weekly[-1]["cells"]:
                 weekly[-1]["cells"][item["group"]].append(item)
         page_data.update({"planning": visible, "weekly_groups": weekly, "subjects": subjects, "weeks": weeks, "clei_filter": clei_filter, "subject_filter": subject_filter, "week_filter": week_filter, "search": search, "drive_updated": metadata.get("modifiedTime", "")})
-        return render_template("planeacion.html", current_user=session.get("user"), **page_data)
+        response = make_response(render_template("planeacion.html", current_user=session.get("user"), **page_data))
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
     except Exception:
         app.logger.exception("No se pudo leer la planeación adicional")
         page_data["data_error"] = "No se pudo leer la hoja adicional de planeación desde Google Drive."
