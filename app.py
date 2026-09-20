@@ -380,6 +380,11 @@ def next_planning_week_range(value):
         source_start = value
     else:
         text = clean_text(value).lower()
+        del_range_match = re.search(
+            r"del\s+(\d{1,2})\s+de\s+([a-záéíóú]+)\s+al\s+"
+            r"\d{1,2}\s+de\s+([a-záéíóú]+)(?:\s+de\s+(\d{4}))?",
+            text,
+        )
         range_match = re.search(
             r"(\d{1,2})\s*(?:al|a|[-–])\s*(\d{1,2})\s+de\s+"
             r"([a-záéíóú]+)\s+de\s+(\d{4})",
@@ -389,7 +394,10 @@ def next_planning_week_range(value):
             r"(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})",
             text,
         )
-        if range_match:
+        if del_range_match:
+            day, month_name = int(del_range_match.group(1)), del_range_match.group(2)
+            year = int(del_range_match.group(4) or colombia_today().year)
+        elif range_match:
             day, month_name, year = int(range_match.group(1)), range_match.group(3), int(range_match.group(4))
         elif single_match:
             day, month_name, year = int(single_match.group(1)), single_match.group(2), int(single_match.group(3))
