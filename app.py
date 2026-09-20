@@ -201,6 +201,60 @@ def build_weekly_proposal(rows, selected):
     return current, proposal
 
 
+PLANNING_DECISIONS = {
+    "avanzar": "AVANZAR",
+    "continuar": "CONTINUAR",
+    "reprogramar": "REPROGRAMAR",
+}
+
+
+def curriculum_topics(buffer, subject, group):
+    """Lee temas en orden desde la malla del archivo base, tolerando encabezados variables."""
+    from openpyxl import load_workbook
+    buffer.seek(0)
+    workbook = load_workbook(buffer, data_only=True, read_only=True)
+    subject_key = normalize_header(subject)
+    group_key = normalize_header(group)
+    topics = []
+    for worksheet in workbook.worksheets:
+        sheet_key = normalize_header(worksheet.title)
+        if subject_key not in sheet_key and sheet_key not in subject_key:
+            continue
+        for values in worksheet.iter_rows(values_only=True):
+            cells = [clean_text(value) for value in values]
+            normalized = [normalize_header(value) for value in cells]
+            topic_index = next((i for i, value in enumerate(normalized) if value in {"tema", "temacurricular", "eje tematico", "contenido"}), None)
+            group_index = next((i for i, value in enumerate(normalized) if "clei" in value or value in {"nivel", "grado", "grupo"}), None)
+            if topic_index is not None:
+                continue
+            if not cells:
+                continue
+            candidate_index = next((i for i, value in enumerate(normalized) if "tema" in value or "contenido" in value or "saber" in value), None)
+            if candidate_index is None:
+                candidate_index = 1 if len(cells) > 1 else 0
+            topic = cells[candidate_index] if candidate_index < len(cells) else ""
+            if not topic or normalize_header(topic) in {"tema", "temacurricular", "contenido"}:
+                continue
+            if group_index is not None and group_index < len(cells):
+                row_group = normalize_header(cells[group_index])
+                if row_group and group_key not in row_group and row_group not in group_key:
+                    continue
+            if normalize_header(topic) not in {normalize_header(item) for item in topics}:
+                topics.append(topic)
+    return topics
+
+
+def next_curriculum_topic(topics, current_theme):
+    if not topics:
+        return ""
+    current_key = normalize_header(current_theme)
+    for index, topic in enumerate(topics):
+        topic_key = normalize_header(topic)
+        if topic_key == current_key or current_key in topic_key or topic_key in current_key:
+            return topics[index + 1] if index + 1 < len(topics) else ""
+    return topics[0]
+
+
 def append_planning_rows(rows):
     service, file_id = get_sheets_service()
     by_subject = {"Matemáticas": "Matemáticas", "Biología": "Biología"}
@@ -322,6 +376,22 @@ def update_native_google_sheet(created):
                 "fields": "userEnteredValue",
             }
         })
+        requests.append({
+            "updateCells": {
+                "start": {"sheetId": sheet_id, "rowIndex": target_start_index, "columnIndex": 4},
+                "rows": [
+                    {"values": [
+                        {"userEnteredValue": {"stringValue": cell.get("theme", "")}},
+                        {"userEnteredValue": {"stringValue": ""}},
+                        {"userEnteredValue": {"stringValue": cell.get("objective", "")}},
+                        {"userEnteredValue": {"stringValue": cell.get("activity", "")}},
+                        {"userEnteredValue": {"stringValue": cell.get("status", "")}},
+                    ]}
+                    for cell in item.get("cells", [])
+                ],
+                "fields": "userEnteredValue",
+            }
+        })
         # Replica las celdas fusionadas de semana y fecha en el nuevo bloque.
         requests.extend([
             {"mergeCells": {"range": {"sheetId": sheet_id, "startRowIndex": target_start_index, "endRowIndex": target_end_index, "startColumnIndex": 1, "endColumnIndex": 2}, "mergeType": "MERGE_ALL"}},
@@ -422,12 +492,13 @@ def next_planning_week_range(value):
     )
 
 
-def create_empty_planning_blocks(buffer, selected_subjects):
-    """Crea un bloque vacío de CLEI I-VI por cada materia seleccionada."""
+def create_empty_planning_blocks(buffer, selected_subjects, decisions=None, curriculum_buffer=None):
+    """Crea la semana y aplica la decisión individual de cada materia/CLEI."""
     from copy import copy
     from openpyxl import load_workbook
 
     selected_subjects = planning_sheet_names(selected_subjects)
+    decisions = decisions or {}
     if not selected_subjects:
         raise ValueError("Selecciona al menos una materia válida.")
 
@@ -453,18 +524,40 @@ def create_empty_planning_blocks(buffer, selected_subjects):
             already_exists.append(f"{subject} / Semana {next_week}")
             continue
 
-        # Replica estilos, bordes, alineación, alturas y formatos de B:H.
-        # La nueva semana recibe el rango lunes-viernes siguiente;
-        # los demás campos editables quedan vacíos.
+        new_cells = []
+        # Replica estilos, bordes, alineación, alturas y formatos de B:I.
+        # La nueva semana recibe la decisión elegida para cada CLEI.
         for offset, clei in enumerate(cleis):
             source_row = source_start + offset
             target_row = target_start + offset
+            prior = {
+                "theme": clean_text(worksheet.cell(source_row, 5).value),
+                "objective": clean_text(worksheet.cell(source_row, 7).value),
+                "activity": clean_text(worksheet.cell(source_row, 8).value),
+            }
             worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
             worksheet.row_dimensions[target_row].hidden = worksheet.row_dimensions[source_row].hidden
             for column in range(2, 10):
                 copy_cell_style(worksheet.cell(source_row, column), worksheet.cell(target_row, column))
                 worksheet.cell(target_row, column).value = None
             worksheet.cell(target_row, 4).value = clei
+            decision = decisions.get((subject, clei), "avanzar")
+            if decision == "reprogramar":
+                theme, objective, activity = prior["theme"], prior["objective"], prior["activity"]
+                status = "REPROGRAMAR: clase no dictada"
+            elif decision == "continuar":
+                theme, objective, activity = prior["theme"], "", ""
+                status = "CONTINUAR: tema en proceso"
+            else:
+                topics = curriculum_topics(curriculum_buffer, subject, clei) if curriculum_buffer else []
+                theme = next_curriculum_topic(topics, prior["theme"]) or "Pendiente de seleccionar en la malla"
+                objective, activity = "", ""
+                status = "AVANZAR: siguiente tema de la malla"
+            worksheet.cell(target_row, 5).value = theme
+            worksheet.cell(target_row, 7).value = objective
+            worksheet.cell(target_row, 8).value = activity
+            worksheet.cell(target_row, 9).value = status
+            new_cells.append({"group": clei, "theme": theme, "objective": objective, "activity": activity, "status": status})
 
         # La semana y la fecha ocupan verticalmente todo el bloque, como en el archivo original.
         for merged_range in (f"B{target_start}:B{target_end}", f"C{target_start}:C{target_end}"):
@@ -478,6 +571,7 @@ def create_empty_planning_blocks(buffer, selected_subjects):
             "week": next_week,
             "rows": f"{target_start}-{target_end}",
             "date": next_date_range,
+            "cells": new_cells,
         })
 
     buffer_out = io.BytesIO()
@@ -994,18 +1088,27 @@ def actualizar_planeacion():
     ]
     today=colombia_today()
     friday=today.weekday()==4
-    page={"options": options, "selected": [], "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
+    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
+    decisions_options = [("avanzar", "Avanzar al siguiente tema"), ("continuar", "Continuar el mismo tema"), ("reprogramar", "Reprogramar: no se dictó")]
+    page={"options": options, "cleis": cleis, "decisions_options": decisions_options, "selected": [], "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
+            decisions = {
+                (subject, clei): request.form.get(f"decision__{normalize_header(subject)}__{normalize_header(clei)}", "avanzar")
+                for subject in selected for clei in cleis
+            }
             if not selected:
                 page["error"] = "Selecciona al menos una materia para crear la nueva estructura."
             elif PLANNING_ONLY_FRIDAY and not friday:
                 page["error"] = "La actualización solo puede confirmarse los viernes."
             else:
                 buffer, metadata = download_planning_from_drive()
-                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected)
+                curriculum_buffer = download_excel_from_drive() if any(value == "avanzar" for value in decisions.values()) else None
+                if curriculum_buffer:
+                    curriculum_buffer = curriculum_buffer[0]
+                updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected, decisions, curriculum_buffer)
                 if created:
                     metadata = upload_planning_to_drive(updated_buffer, metadata=metadata, created=created)
                     page["created"] = created
