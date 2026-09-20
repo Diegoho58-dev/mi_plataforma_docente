@@ -578,16 +578,20 @@ def read_additional_planning_rows(buffer):
             activity = cells[7] if len(cells) > 7 else ""
             status = cells[8] if len(cells) > 8 else ""
             group = normalize_planning_clei(group)
-            if not group or not theme:
+            # Los bloques recién creados tienen el CLEI pero todavía no tienen
+            # tema. Deben seguir visibles para confirmar que la semana existe.
+            if not group or not current_week:
                 continue
-            if theme.upper() == "N/A":
+            if not theme:
+                theme = "Pendiente por diligenciar"
+            elif theme.upper() == "N/A":
                 theme = "Sin planeación registrada"
             observations = " | ".join(item for item in (objective, activity, status) if item and item.upper() != "N/A")
             planning.append({
                 "date": date(2026, 1, 1), "date_label": current_range or "Fecha por definir",
                 "context": "Alta", "context_class": "alta", "group": group,
                 "subject": subject, "theme": theme or "Sin tema registrado", "observations": observations,
-                "objective": objective or "No registrado", "activity": activity or "No registrada", "status": status or "Sin estado",
+                "objective": objective or "No registrado", "activity": activity or "No registrada", "status": status or "Pendiente por diligenciar",
                 "week": current_week, "week_number": int(re.search(r"\d+", current_week).group()) if re.search(r"\d+", current_week) else 999, "cycle": None, "cycle_week": None,
                 "no_class": False, "novelty": "", "drive_link": "", "source": sheet_name,
             })
