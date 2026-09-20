@@ -227,8 +227,11 @@ def download_planning_from_drive():
     return download_drive_file(file_id)
 
 
-def upload_planning_to_drive(buffer):
-    """Actualiza el mismo archivo XLSX de planeación en Drive."""
+def upload_planning_to_drive(buffer, metadata=None, created=None):
+    """Actualiza el archivo de planeación, Excel o Google Sheets."""
+    if metadata and metadata.get("mimeType") == "application/vnd.google-apps.spreadsheet":
+        return update_native_google_sheet(created or [])
+
     service, file_id = get_planning_drive_service()
     buffer.seek(0)
     media = MediaIoBaseUpload(
@@ -240,6 +243,94 @@ def upload_planning_to_drive(buffer):
         fileId=file_id,
         media_body=media,
         fields="id,name,modifiedTime",
+    ).execute()
+
+
+def update_native_google_sheet(created):
+    """Crea los bloques nuevos directamente en un Google Sheet nativo."""
+    if not created:
+        return {"id": os.environ.get("PLANNING_GOOGLE_DRIVE_FILE_ID", DEFAULT_PLANNING_DRIVE_FILE_ID)}
+
+    service, file_id = get_sheets_service()
+    spreadsheet = service.spreadsheets().get(
+        spreadsheetId=file_id,
+        fields="sheets(properties(sheetId,title))",
+    ).execute()
+    sheet_ids = {
+        item["properties"]["title"]: item["properties"]["sheetId"]
+        for item in spreadsheet.get("sheets", [])
+    }
+    requests = []
+    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
+
+    for item in created:
+        subject = item["subject"]
+        sheet_id = sheet_ids.get(subject)
+        if sheet_id is None:
+            raise RuntimeError(f"No existe la pestaña '{subject}' en el Google Sheet.")
+        target_start, target_end = [int(value) for value in item["rows"].split("-")]
+        target_start_index = target_start - 1
+        target_end_index = target_end
+        source_start_index = target_start_index - len(cleis)
+
+        # Copia estilos, bordes, formatos y dimensiones visuales del bloque anterior.
+        requests.append({
+            "copyPaste": {
+                "source": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": source_start_index,
+                    "endRowIndex": target_start_index,
+                    "startColumnIndex": 1,
+                    "endColumnIndex": 9,
+                },
+                "destination": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": target_start_index,
+                    "endRowIndex": target_end_index,
+                    "startColumnIndex": 1,
+                    "endColumnIndex": 9,
+                },
+                "pasteType": "PASTE_ALL",
+            }
+        })
+        # Limpia todos los campos editables, incluido Estado (columna I).
+        requests.append({
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": target_start_index,
+                    "endRowIndex": target_end_index,
+                    "startColumnIndex": 4,
+                    "endColumnIndex": 9,
+                },
+                "cell": {},
+                "fields": "userEnteredValue",
+            }
+        })
+        # Define semana, rango de fechas y CLEI, y conserva vacíos los demás cuadros.
+        requests.append({
+            "updateCells": {
+                "start": {"sheetId": sheet_id, "rowIndex": target_start_index, "columnIndex": 1},
+                "rows": [{"values": [{"userEnteredValue": {"stringValue": f"Semana {item['week']}"}}, {"userEnteredValue": {"stringValue": item["date"]}}]}],
+                "fields": "userEnteredValue",
+            }
+        })
+        requests.append({
+            "updateCells": {
+                "start": {"sheetId": sheet_id, "rowIndex": target_start_index, "columnIndex": 3},
+                "rows": [{"values": [{"userEnteredValue": {"stringValue": clei}}]} for clei in cleis],
+                "fields": "userEnteredValue",
+            }
+        })
+        # Replica las celdas fusionadas de semana y fecha en el nuevo bloque.
+        requests.extend([
+            {"mergeCells": {"range": {"sheetId": sheet_id, "startRowIndex": target_start_index, "endRowIndex": target_end_index, "startColumnIndex": 1, "endColumnIndex": 2}, "mergeType": "MERGE_ALL"}},
+            {"mergeCells": {"range": {"sheetId": sheet_id, "startRowIndex": target_start_index, "endRowIndex": target_end_index, "startColumnIndex": 2, "endColumnIndex": 3}, "mergeType": "MERGE_ALL"}},
+        ])
+
+    return service.spreadsheets().batchUpdate(
+        spreadsheetId=file_id,
+        body={"requests": requests},
     ).execute()
 
 
@@ -362,7 +453,7 @@ def create_empty_planning_blocks(buffer, selected_subjects):
             target_row = target_start + offset
             worksheet.row_dimensions[target_row].height = worksheet.row_dimensions[source_row].height
             worksheet.row_dimensions[target_row].hidden = worksheet.row_dimensions[source_row].hidden
-            for column in range(2, 9):
+            for column in range(2, 10):
                 copy_cell_style(worksheet.cell(source_row, column), worksheet.cell(target_row, column))
                 worksheet.cell(target_row, column).value = None
             worksheet.cell(target_row, 4).value = clei
@@ -896,10 +987,10 @@ def actualizar_planeacion():
             elif PLANNING_ONLY_FRIDAY and not friday:
                 page["error"] = "La actualización solo puede confirmarse los viernes."
             else:
-                buffer, _ = download_planning_from_drive()
+                buffer, metadata = download_planning_from_drive()
                 updated_buffer, created, already_exists = create_empty_planning_blocks(buffer, selected)
                 if created:
-                    metadata = upload_planning_to_drive(updated_buffer)
+                    metadata = upload_planning_to_drive(updated_buffer, metadata=metadata, created=created)
                     page["created"] = created
                     page["already_exists"] = already_exists
                     page["message"] = f"Se creó la estructura vacía en {len(created)} hoja(s) y se actualizó el archivo de Drive."
