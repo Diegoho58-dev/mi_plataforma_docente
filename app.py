@@ -1246,12 +1246,15 @@ def actualizar_planeacion():
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
+            def planning_field_key(value):
+                return re.sub(r"\s+", "", normalize_header(value))
+
             selected_cleis = {
-                subject: [clei for clei in cleis if clei in request.form.getlist(f"clei__{normalize_header(subject)}")]
+                subject: [clei for clei in cleis if clei in request.form.getlist(f"clei__{planning_field_key(subject)}")]
                 for subject in selected
             }
             selected_themes = {
-                (subject, clei): clean_text(request.form.get(f"tema__{normalize_header(subject)}__{normalize_header(clei)}", ""))
+                (subject, clei): clean_text(request.form.get(f"tema__{planning_field_key(subject)}__{planning_field_key(clei)}", ""))
                 for subject in selected for clei in selected_cleis.get(subject, [])
             }
             page["selected_cleis"] = selected_cleis
