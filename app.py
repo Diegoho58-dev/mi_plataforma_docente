@@ -1,8 +1,8 @@
-
 import io
 import json
 import os
 import re
+import time
 import unicodedata
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -36,6 +36,8 @@ CYCLE_START = date(2026, 7, 6)
 DRIVE_ENABLED = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() == "true"
 PLANNING_ONLY_FRIDAY = os.environ.get("PLANNING_ONLY_FRIDAY", "false").strip().lower() == "true"
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
+CURRICULUM_CACHE = {"modified_time": None, "topics": None, "loaded_at": 0}
+CURRICULUM_CACHE_SECONDS = int(os.environ.get("CURRICULUM_CACHE_SECONDS", "300"))
 
 
 def login_required(view_function):
@@ -209,11 +211,12 @@ PLANNING_DECISIONS = {
 }
 
 
-def curriculum_topics(buffer, subject, group):
+def curriculum_topics(buffer, subject, group, workbook=None):
     """Lee temas en orden desde la malla del archivo base, tolerando encabezados variables."""
-    from openpyxl import load_workbook
-    buffer.seek(0)
-    workbook = load_workbook(buffer, data_only=True, read_only=True)
+    if workbook is None:
+        from openpyxl import load_workbook
+        buffer.seek(0)
+        workbook = load_workbook(buffer, data_only=True, read_only=True)
     subject_key = normalize_header(subject)
     group_key = normalize_header(group)
     subject_aliases = {
@@ -1111,10 +1114,24 @@ def actualizar_planeacion():
     try:
         curriculum_buffer = None
         if DRIVE_ENABLED:
-            curriculum_buffer, _ = download_excel_from_drive()
-            for option in options:
-                for clei in cleis:
-                    page["topics_by_subject"][option["value"]][clei] = curriculum_topics(curriculum_buffer, option["value"], clei)
+            cache_is_fresh = (
+                CURRICULUM_CACHE["topics"]
+                and time.monotonic() - CURRICULUM_CACHE["loaded_at"] < CURRICULUM_CACHE_SECONDS
+            )
+            if cache_is_fresh:
+                page["topics_by_subject"] = CURRICULUM_CACHE["topics"]
+            else:
+                from openpyxl import load_workbook
+                curriculum_buffer, curriculum_metadata = download_excel_from_drive()
+                modified_time = curriculum_metadata.get("modifiedTime", "")
+                curriculum_buffer.seek(0)
+                curriculum_workbook = load_workbook(curriculum_buffer, data_only=True, read_only=True)
+                for option in options:
+                    for clei in cleis:
+                        page["topics_by_subject"][option["value"]][clei] = curriculum_topics(curriculum_buffer, option["value"], clei, workbook=curriculum_workbook)
+                CURRICULUM_CACHE["modified_time"] = modified_time
+                CURRICULUM_CACHE["topics"] = page["topics_by_subject"]
+                CURRICULUM_CACHE["loaded_at"] = time.monotonic()
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
@@ -1676,3 +1693,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
