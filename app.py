@@ -222,7 +222,7 @@ def curriculum_group_key(value):
     number = roman_values.get(raw)
     if number is None and raw.isdigit():
         number = int(raw)
-    return "clei 5-6" if number in {5, 6} else f"clei {number}" if number else text
+    return f"clei {number}" if number else text
 
 
 def curriculum_topics(buffer, subject, group, workbook=None):
@@ -239,6 +239,10 @@ def curriculum_topics(buffer, subject, group, workbook=None):
     }
     sheet_aliases = subject_aliases.get(subject_key, set())
     requested_group = curriculum_group_key(group)
+    # El menú agrupa CLEI 5 y CLEI 6, pero la malla debe salir únicamente de
+    # la columna CLEI 5.
+    if requested_group == "clei 5-6" or normalize_header(group).replace(" ", "") in {"clei5-6", "cleiv-vi"}:
+        requested_group = "clei 5"
     # CLEI 1 no corresponde a estas dos materias en la planeación docente.
     # Se muestra explícitamente para que el usuario pueda registrar N/A y no
     # se herede por error el primer tema de la malla.
@@ -267,7 +271,7 @@ def curriculum_topics(buffer, subject, group, workbook=None):
             number = roman_values.get(raw)
             if number is None and raw.isdigit():
                 number = int(raw)
-            return "clei 5-6" if number in {5, 6} else f"clei {number}" if number else ""
+            return f"clei {number}" if number else ""
         return curriculum_group_key(value) if re.search(r"(?:clei|nivel|grado|grupo)", text) else ""
 
     for worksheet in workbook.worksheets:
@@ -628,6 +632,8 @@ def create_empty_planning_blocks(buffer, selected_subjects, decisions=None, curr
     workbook = load_workbook(buffer)
     created = []
     already_exists = []
+    # El archivo conserva seis filas; CLEI V y CLEI VI reciben el mismo tema
+    # cuando el menú agrupa ambos como CLEI 5-6.
     cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
 
     for subject in selected_subjects:
@@ -665,8 +671,9 @@ def create_empty_planning_blocks(buffer, selected_subjects, decisions=None, curr
                 copy_cell_style(worksheet.cell(source_row, column), worksheet.cell(target_row, column))
                 worksheet.cell(target_row, column).value = None
             worksheet.cell(target_row, 4).value = clei
-            if clei in selected_cleis.get(subject, []):
-                theme = selected_themes.get((subject, clei), "")
+            grouped_5_6 = clei in {"CLEI V", "CLEI VI"} and "CLEI 5-6" in selected_cleis.get(subject, [])
+            if clei in selected_cleis.get(subject, []) or grouped_5_6:
+                theme = selected_themes.get((subject, "CLEI 5-6"), "") if grouped_5_6 else selected_themes.get((subject, clei), "")
                 if not theme:
                     raise ValueError(f"Selecciona un tema de la malla para {subject} / {clei}.")
                 observations, objective, activity = "", "", ""
@@ -682,7 +689,7 @@ def create_empty_planning_blocks(buffer, selected_subjects, decisions=None, curr
             worksheet.cell(target_row, 7).value = objective
             worksheet.cell(target_row, 8).value = activity
             worksheet.cell(target_row, 9).value = status
-            new_cells.append({"group": clei, "theme": clean_text(theme), "objective": clean_text(objective), "activity": clean_text(activity), "status": clean_text(status), "mode": "malla" if clei in selected_cleis.get(subject, []) else "heredado"})
+            new_cells.append({"group": clei, "theme": clean_text(theme), "objective": clean_text(objective), "activity": clean_text(activity), "status": clean_text(status), "mode": "malla" if clei in selected_cleis.get(subject, []) or grouped_5_6 else "heredado"})
 
         # La semana y la fecha ocupan verticalmente todo el bloque, como en el archivo original.
         for merged_range in (f"B{target_start}:B{target_end}", f"C{target_start}:C{target_end}"):
@@ -1213,7 +1220,7 @@ def actualizar_planeacion():
     ]
     today=colombia_today()
     friday=today.weekday()==4
-    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI V", "CLEI VI"]
+    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI 5-6"]
     page={"options": options, "cleis": cleis, "topics_by_subject": {item["value"]: {clei: [] for clei in cleis} for item in options}, "selected": [], "selected_cleis": {}, "selected_themes": {}, "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
         curriculum_buffer = None
