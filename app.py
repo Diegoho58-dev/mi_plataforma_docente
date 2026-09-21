@@ -214,7 +214,7 @@ PLANNING_DECISIONS = {
 def curriculum_group_key(value):
     """Convierte CLEI romanos y arábigos a una clave común para filtrar la malla."""
     text = normalize_header(value).replace("-", " ")
-    match = re.search(r"(?:clei|nivel|grado|grupo)\s*(i{1,3}|iv|v|vi|[1-6])", text)
+    match = re.search(r"(?:clei|nivel|grado|grupo)\s*(vi|iv|iii|ii|i|[1-6])(?:\s|$)", text)
     if not match:
         return text
     raw = match.group(1).upper()
@@ -239,6 +239,11 @@ def curriculum_topics(buffer, subject, group, workbook=None):
     }
     sheet_aliases = subject_aliases.get(subject_key, set())
     requested_group = curriculum_group_key(group)
+    # CLEI 1 no corresponde a estas dos materias en la planeación docente.
+    # Se muestra explícitamente para que el usuario pueda registrar N/A y no
+    # se herede por error el primer tema de la malla.
+    if requested_group == "clei 1":
+        return ["N/A"]
     topics = []
     seen_topics = set()
     topic_headers = {"tema", "temas", "temacurricular", "temascurriculares", "ej tematico", "ejetematico", "eje tematico", "contenido", "contenidos", "saber", "saberes"}
@@ -256,7 +261,7 @@ def curriculum_topics(buffer, subject, group, workbook=None):
     def header_group_key(value):
         """Acepta encabezados como CLEI I, CLEI 1, I o 1."""
         text = normalize_header(value).strip()
-        if re.fullmatch(r"(?:i{1,3}|iv|v|vi|[1-6])", text):
+        if re.fullmatch(r"(?:vi|iv|iii|ii|i|[1-6])", text):
             raw = text.upper()
             roman_values = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6}
             number = roman_values.get(raw)
