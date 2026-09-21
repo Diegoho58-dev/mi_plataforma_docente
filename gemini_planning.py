@@ -103,7 +103,9 @@ def generate_planning_proposal(subject, clei, theme, previous_examples=None, tim
         detail = exc.read().decode("utf-8", errors="replace")[:500]
         if exc.code == 429:
             raise GeminiPlanningError("Gemini alcanzó el límite gratuito. Intenta nuevamente más tarde.") from exc
-        raise GeminiPlanningError(f"Gemini rechazó la solicitud ({exc.code}).") from exc
+       raise GeminiPlanningError(
+          f"Gemini rechazó la solicitud ({exc.code}). Detalle: {detail}"
+        ) from exc
     except (error.URLError, TimeoutError) as exc:
         raise GeminiPlanningError("No fue posible conectarse con Gemini.") from exc
     except json.JSONDecodeError as exc:
