@@ -1,3 +1,4 @@
+
 import io
 import json
 import os
@@ -215,29 +216,41 @@ def curriculum_topics(buffer, subject, group):
     workbook = load_workbook(buffer, data_only=True, read_only=True)
     subject_key = normalize_header(subject)
     group_key = normalize_header(group)
+    subject_aliases = {
+        "matematicas": {"matematicas", "malla curri mat", "malla curricular mat", "malla mat"},
+        "biologia": {"biologia", "malla curri bio", "malla curricular bio", "malla bio"},
+    }
+    aliases = subject_aliases.get(subject_key, {subject_key})
     topics = []
     for worksheet in workbook.worksheets:
         sheet_key = normalize_header(worksheet.title)
-        if subject_key not in sheet_key and sheet_key not in subject_key:
+        if not any(alias in sheet_key or sheet_key in alias for alias in aliases):
             continue
+        header_topic_index = None
+        header_group_index = None
         for values in worksheet.iter_rows(values_only=True):
             cells = [clean_text(value) for value in values]
             normalized = [normalize_header(value) for value in cells]
-            topic_index = next((i for i, value in enumerate(normalized) if value in {"tema", "temacurricular", "eje tematico", "contenido"}), None)
+            topic_index = next((i for i, value in enumerate(normalized) if value in {"tema", "temacurricular", "eje tematico", "contenido"} or "tema" in value or "contenido" in value), None)
             group_index = next((i for i, value in enumerate(normalized) if "clei" in value or value in {"nivel", "grado", "grupo"}), None)
             if topic_index is not None:
+                header_topic_index = topic_index
+                header_group_index = group_index
                 continue
             if not cells:
                 continue
-            candidate_index = next((i for i, value in enumerate(normalized) if "tema" in value or "contenido" in value or "saber" in value), None)
+            candidate_index = header_topic_index
+            if candidate_index is None:
+                candidate_index = next((i for i, value in enumerate(normalized) if "tema" in value or "contenido" in value or "saber" in value), None)
             if candidate_index is None:
                 candidate_index = 1 if len(cells) > 1 else 0
             topic = cells[candidate_index] if candidate_index < len(cells) else ""
             if not topic or normalize_header(topic) in {"tema", "temacurricular", "contenido"}:
                 continue
-            if group_index is not None and group_index < len(cells):
-                row_group = normalize_header(cells[group_index])
-                if row_group and group_key not in row_group and row_group not in group_key:
+            if header_group_index is not None and header_group_index < len(cells):
+                row_group = normalize_header(cells[header_group_index])
+                group_matches = row_group == group_key or bool(re.search(rf"(?:^|\s){re.escape(group_key)}(?:\s|$)", row_group))
+                if row_group and not group_matches:
                     continue
             if normalize_header(topic) not in {normalize_header(item) for item in topics}:
                 topics.append(topic)
