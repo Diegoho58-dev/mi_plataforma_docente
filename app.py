@@ -241,8 +241,17 @@ def curriculum_topics(buffer, subject, group, workbook=None):
     requested_group = curriculum_group_key(group)
     topics = []
     seen_topics = set()
-    topic_headers = {"tema", "temacurricular", "ej tematico", "ejetematico", "contenido", "saber"}
+    topic_headers = {"tema", "temas", "temacurricular", "temascurriculares", "ej tematico", "ejetematico", "eje tematico", "contenido", "contenidos", "saber", "saberes"}
     group_headers = {"clei", "nivel", "grado", "grupo"}
+
+    def is_topic_header(value):
+        normalized = normalize_header(value).strip()
+        if normalized in topic_headers:
+            return True
+        return bool(re.match(r"^(tema|temas|contenido|contenidos|eje tematic|saber|saberes)(?:\s|/|-|:|\(|$)", normalized))
+
+    def is_numeric(value):
+        return bool(re.fullmatch(r"\d+(?:[.,]\d+)?", clean_text(value)))
 
     for worksheet in workbook.worksheets:
         sheet_key = re.sub(r"[^a-z0-9]", "", normalize_header(worksheet.title))
@@ -251,31 +260,39 @@ def curriculum_topics(buffer, subject, group, workbook=None):
         if sheet_key not in sheet_aliases:
             continue
 
+        rows = [[clean_text(value) for value in values] for values in worksheet.iter_rows(values_only=True)]
+        rows = [cells for cells in rows if any(cells)]
+        if not rows:
+            continue
+
+        # Primero se localiza la cabecera. Si no existe una cabecera estándar,
+        # se elige la columna con más texto y se descartan columnas numéricas
+        # (consecutivos, códigos o indicadores de la malla).
         header_topic_index = None
         header_group_index = None
-        for values in worksheet.iter_rows(values_only=True):
-            cells = [clean_text(value) for value in values]
-            if not any(cells):
-                continue
+        header_row_index = None
+        for row_index, cells in enumerate(rows[:50]):
             normalized = [normalize_header(value) for value in cells]
-
-            # Solo una celda que sea realmente un encabezado cambia el estado;
-            # no se debe interpretar una descripción que contenga "tema" como
-            # una nueva cabecera.
-            topic_index = next((i for i, value in enumerate(normalized) if value in topic_headers), None)
-            group_index = next((i for i, value in enumerate(normalized) if value in group_headers or value.startswith("clei ")), None)
+            topic_index = next((i for i, value in enumerate(normalized) if is_topic_header(value)), None)
             if topic_index is not None:
                 header_topic_index = topic_index
-                header_group_index = group_index
-                continue
+                header_group_index = next((i for i, value in enumerate(normalized) if value in group_headers), None)
+                header_row_index = row_index
+                break
 
-            candidate_index = header_topic_index
-            if candidate_index is None:
-                candidate_index = next((i for i, value in enumerate(normalized) if value in topic_headers), None)
-            if candidate_index is None:
-                candidate_index = 1 if len(cells) > 1 else 0
-            topic = cells[candidate_index] if candidate_index < len(cells) else ""
-            if not topic or normalize_header(topic) in topic_headers:
+        if header_topic_index is None:
+            max_columns = max(len(row) for row in rows)
+            scores = []
+            for column in range(max_columns):
+                values = [row[column] for row in rows if column < len(row) and row[column]]
+                text_values = [value for value in values if not is_numeric(value)]
+                scores.append((len(text_values), sum(len(value) for value in text_values), column))
+            header_topic_index = max(scores)[2] if scores else 0
+            header_row_index = -1
+
+        for cells in rows[header_row_index + 1:]:
+            topic = cells[header_topic_index] if header_topic_index < len(cells) else ""
+            if not topic or is_numeric(topic) or is_topic_header(topic):
                 continue
 
             if header_group_index is not None and header_group_index < len(cells):
