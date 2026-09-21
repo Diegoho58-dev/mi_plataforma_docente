@@ -808,14 +808,14 @@ def read_additional_planning_rows(buffer):
             group = normalize_planning_clei(group)
             if group:
                 block_rows_seen += 1
-            # Los bloques recién creados tienen el CLEI pero todavía no tienen
-            # tema. Deben seguir visibles si aún conservan su encabezado.
-            # Si el encabezado fue borrado manualmente, no heredamos la semana anterior.
+            # Una fila que conserva solo semana/CLEI después de borrar una
+            # prueba no es una planeación válida y no debe reaparecer como
+            # "Pendiente" en la plataforma.
             if not group or not current_week or block_rows_seen > 6:
                 continue
-            if not theme:
-                theme = "Pendiente por diligenciar"
-            elif theme.upper() == "N/A":
+            if not any((theme, objective, activity, status)):
+                continue
+            if theme.upper() == "N/A":
                 theme = "Sin planeación registrada"
             observations = " | ".join(item for item in (objective, activity, status) if item and item.upper() != "N/A")
             planning.append({
