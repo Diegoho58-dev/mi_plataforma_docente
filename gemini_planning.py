@@ -10,7 +10,7 @@ GEMINI_API_URL = (
     "v1beta/models/{model}:generateContent"
 )
 
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 
 class GeminiPlanningError(RuntimeError):
