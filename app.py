@@ -211,51 +211,81 @@ PLANNING_DECISIONS = {
 }
 
 
+def curriculum_group_key(value):
+    """Convierte CLEI romanos y arábigos a una clave común para filtrar la malla."""
+    text = normalize_header(value).replace("-", " ")
+    match = re.search(r"(?:clei|nivel|grado|grupo)\s*(i{1,3}|iv|v|vi|[1-6])", text)
+    if not match:
+        return text
+    raw = match.group(1).upper()
+    roman_values = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6}
+    number = roman_values.get(raw)
+    if number is None and raw.isdigit():
+        number = int(raw)
+    return "clei 5-6" if number in {5, 6} else f"clei {number}" if number else text
+
+
 def curriculum_topics(buffer, subject, group, workbook=None):
-    """Lee temas en orden desde la malla del archivo base, tolerando encabezados variables."""
+    """Lee únicamente la malla curricular correspondiente a la materia y al CLEI."""
     if workbook is None:
         from openpyxl import load_workbook
         buffer.seek(0)
         workbook = load_workbook(buffer, data_only=True, read_only=True)
+
     subject_key = normalize_header(subject)
-    group_key = normalize_header(group)
     subject_aliases = {
-        "matematicas": {"matematicas", "malla curri mat", "malla curricular mat", "malla mat"},
-        "biologia": {"biologia", "malla curri bio", "malla curricular bio", "malla bio"},
+        "matematicas": {"mallacurrimat", "mallacurricularmat", "mallamat"},
+        "biologia": {"mallacurribio", "mallacurricularbio", "mallabio"},
     }
-    aliases = subject_aliases.get(subject_key, {subject_key})
+    sheet_aliases = subject_aliases.get(subject_key, set())
+    requested_group = curriculum_group_key(group)
     topics = []
+    seen_topics = set()
+    topic_headers = {"tema", "temacurricular", "ej tematico", "ejetematico", "contenido", "saber"}
+    group_headers = {"clei", "nivel", "grado", "grupo"}
+
     for worksheet in workbook.worksheets:
-        sheet_key = normalize_header(worksheet.title)
-        if not any(alias in sheet_key or sheet_key in alias for alias in aliases):
+        sheet_key = re.sub(r"[^a-z0-9]", "", normalize_header(worksheet.title))
+        # No usar coincidencias parciales (por ejemplo, una hoja de clases o de
+        # planeación que también contenga la palabra "biología").
+        if sheet_key not in sheet_aliases:
             continue
+
         header_topic_index = None
         header_group_index = None
         for values in worksheet.iter_rows(values_only=True):
             cells = [clean_text(value) for value in values]
+            if not any(cells):
+                continue
             normalized = [normalize_header(value) for value in cells]
-            topic_index = next((i for i, value in enumerate(normalized) if value in {"tema", "temacurricular", "eje tematico", "contenido"} or "tema" in value or "contenido" in value), None)
-            group_index = next((i for i, value in enumerate(normalized) if "clei" in value or value in {"nivel", "grado", "grupo"}), None)
+
+            # Solo una celda que sea realmente un encabezado cambia el estado;
+            # no se debe interpretar una descripción que contenga "tema" como
+            # una nueva cabecera.
+            topic_index = next((i for i, value in enumerate(normalized) if value in topic_headers), None)
+            group_index = next((i for i, value in enumerate(normalized) if value in group_headers or value.startswith("clei ")), None)
             if topic_index is not None:
                 header_topic_index = topic_index
                 header_group_index = group_index
                 continue
-            if not cells:
-                continue
+
             candidate_index = header_topic_index
             if candidate_index is None:
-                candidate_index = next((i for i, value in enumerate(normalized) if "tema" in value or "contenido" in value or "saber" in value), None)
+                candidate_index = next((i for i, value in enumerate(normalized) if value in topic_headers), None)
             if candidate_index is None:
                 candidate_index = 1 if len(cells) > 1 else 0
             topic = cells[candidate_index] if candidate_index < len(cells) else ""
-            if not topic or normalize_header(topic) in {"tema", "temacurricular", "contenido"}:
+            if not topic or normalize_header(topic) in topic_headers:
                 continue
+
             if header_group_index is not None and header_group_index < len(cells):
-                row_group = normalize_header(cells[header_group_index])
-                group_matches = row_group == group_key or bool(re.search(rf"(?:^|\s){re.escape(group_key)}(?:\s|$)", row_group))
-                if row_group and not group_matches:
+                row_group = curriculum_group_key(cells[header_group_index])
+                if row_group and row_group != requested_group:
                     continue
-            if normalize_header(topic) not in {normalize_header(item) for item in topics}:
+
+            topic_key = normalize_header(topic)
+            if topic_key not in seen_topics:
+                seen_topics.add(topic_key)
                 topics.append(topic)
     return topics
 
@@ -1693,4 +1723,3 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
