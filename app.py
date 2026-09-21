@@ -253,6 +253,18 @@ def curriculum_topics(buffer, subject, group, workbook=None):
     def is_numeric(value):
         return bool(re.fullmatch(r"\d+(?:[.,]\d+)?", clean_text(value)))
 
+    def header_group_key(value):
+        """Acepta encabezados como CLEI I, CLEI 1, I o 1."""
+        text = normalize_header(value).strip()
+        if re.fullmatch(r"(?:i{1,3}|iv|v|vi|[1-6])", text):
+            raw = text.upper()
+            roman_values = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6}
+            number = roman_values.get(raw)
+            if number is None and raw.isdigit():
+                number = int(raw)
+            return "clei 5-6" if number in {5, 6} else f"clei {number}" if number else ""
+        return curriculum_group_key(value) if re.search(r"(?:clei|nivel|grado|grupo)", text) else ""
+
     for worksheet in workbook.worksheets:
         sheet_key = re.sub(r"[^a-z0-9]", "", normalize_header(worksheet.title))
         # No usar coincidencias parciales (por ejemplo, una hoja de clases o de
@@ -263,6 +275,46 @@ def curriculum_topics(buffer, subject, group, workbook=None):
         rows = [[clean_text(value) for value in values] for values in worksheet.iter_rows(values_only=True)]
         rows = [cells for cells in rows if any(cells)]
         if not rows:
+            continue
+
+        # Algunas mallas tienen una fila de encabezados (por ejemplo, la fila
+        # 14) con un CLEI por columna y los temas debajo de cada columna:
+        #     CLEI I | CLEI II | CLEI III ...
+        #     Tema 1  | Tema 1   | Tema 1    ...
+        # En ese formato no hay una columna "CLEI" para filtrar por fila.
+        horizontal_candidates = []
+        for row_index, cells in enumerate(rows[:50]):
+            columns_by_group = {}
+            for column, cell in enumerate(cells):
+                group_key = header_group_key(cell)
+                if group_key:
+                    columns_by_group[column] = group_key
+            if len(set(columns_by_group.values())) >= 2:
+                has_clei_label = any("clei" in normalize_header(cell) for cell in cells)
+                horizontal_candidates.append((has_clei_label, len(columns_by_group), row_index, columns_by_group))
+
+        horizontal_header = None
+        if horizontal_candidates:
+            # Se prioriza una fila que diga explícitamente CLEI; si la malla
+            # solo usa 1, 2, 3..., se toma la fila con más columnas numeradas.
+            _, _, header_row_index, columns_by_group = max(horizontal_candidates, key=lambda item: (item[0], item[1], -item[2]))
+            horizontal_header = (header_row_index, columns_by_group)
+
+        if horizontal_header:
+            header_row_index, columns_by_group = horizontal_header
+            for column, column_group in columns_by_group.items():
+                if column_group != requested_group:
+                    continue
+                for cells in rows[header_row_index + 1:]:
+                    if column >= len(cells):
+                        continue
+                    topic = cells[column]
+                    if not topic or is_numeric(topic) or is_topic_header(topic):
+                        continue
+                    topic_key = normalize_header(topic)
+                    if topic_key not in seen_topics:
+                        seen_topics.add(topic_key)
+                        topics.append(topic)
             continue
 
         # Primero se localiza la cabecera. Si no existe una cabecera estándar,
