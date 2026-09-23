@@ -478,18 +478,20 @@ def download_external_subjects():
     ]
     records = []
     metadata = []
+    service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not service_json:
+        raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
+    credentials = service_account.Credentials.from_service_account_info(
+        json.loads(service_json), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    )
+    service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
     for source, file_id in sources:
-        service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-        if not service_json:
-            raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(service_json), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
-        )
-        service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
         spreadsheet = service.spreadsheets().get(
             spreadsheetId=file_id,
             fields="spreadsheetId,properties(title),sheets(properties(title,gridProperties(rowCount,columnCount)))",
         ).execute()
+        ranges = []
+        sheet_ranges = []
         for sheet in spreadsheet.get("sheets", []):
             properties = sheet.get("properties", {})
             title = properties.get("title", "")
@@ -497,13 +499,19 @@ def download_external_subjects():
             rows = min(int(grid.get("rowCount", 100)), 250)
             columns = min(int(grid.get("columnCount", 26)), 40)
             end_column = chr(64 + columns) if columns <= 26 else "AN"
-            values_response = service.spreadsheets().values().get(
-                spreadsheetId=file_id,
-                range=f"'{title}'!A1:{end_column}{rows}",
-                majorDimension="ROWS",
-            ).execute()
+            ranges.append(f"'{title}'!A1:{end_column}{rows}")
+            sheet_ranges.append((title, rows, end_column))
+        batch_response = service.spreadsheets().values().batchGet(
+            spreadsheetId=file_id,
+            ranges=ranges,
+            majorDimension="ROWS",
+        ).execute()
+        for (title, _, _), value_range in zip(
+            sheet_ranges,
+            batch_response.get("valueRanges", []),
+        ):
             records.extend(parse_values(
-                values_response.get("values", []),
+                value_range.get("values", []),
                 title,
                 source,
                 default_year=colombia_today().year,
