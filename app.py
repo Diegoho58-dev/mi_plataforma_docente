@@ -1755,6 +1755,7 @@ def otras_materias():
         "records": [],
         "matrix": [],
         "dates": [],
+        "date_options": [],
         "sources": ["Alta y CLEI normal", "Multigrado / Mediana"],
         "subjects": [],
         "cleis": [],
@@ -1764,6 +1765,7 @@ def otras_materias():
         "subject_filter": request.args.get("materia", "").strip(),
         "teacher_filter": request.args.get("profesora", "").strip(),
         "context_filter": request.args.get("contexto", "").strip(),
+        "date_filter": request.args.get("fecha", "").strip(),
         "search": request.args.get("buscar", "").strip(),
         "only_mismatches": request.args.get("recuperaciones", "") == "1",
         "summary": summarize([]),
@@ -1782,6 +1784,10 @@ def otras_materias():
         page_data["cleis"] = sorted({item["clei"] for item in all_records})
         page_data["teachers"] = sorted({item["teacher"] for item in all_records})
         page_data["contexts"] = sorted({item["context"] for item in all_records})
+        page_data["date_options"] = sorted({
+            (item["class_date"].isoformat(), item["class_date_label"])
+            for item in all_records if item.get("class_date")
+        })
         needle = normalize_header(page_data["search"])
         records = [
             item for item in all_records
@@ -1789,6 +1795,7 @@ def otras_materias():
             and (not page_data["subject_filter"] or item["subject"] == page_data["subject_filter"])
             and (not page_data["teacher_filter"] or item["teacher"] == page_data["teacher_filter"])
             and (not page_data["context_filter"] or item["context"] == page_data["context_filter"])
+            and (not page_data["date_filter"] or (item.get("class_date") and item["class_date"].isoformat() == page_data["date_filter"]))
             and (not page_data["only_mismatches"] or item["week_mismatch"])
             and (not needle or needle in normalize_header(" ".join(str(item.get(key, "")) for key in ("student", "identification", "group", "subject", "teacher", "clei"))))
         ]
