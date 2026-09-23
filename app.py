@@ -13,7 +13,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from gemini_planning import GeminiPlanningError, generate_planning_proposal
-from external_subjects import build_external_matrix, mark_week_mismatches, parse_workbook, summarize
+from external_subjects import build_external_matrix, mark_week_mismatches, parse_values, summarize
 
 app = Flask(__name__)
 
@@ -465,7 +465,7 @@ def download_planning_from_drive():
 
 
 def download_external_subjects():
-    """Descarga las dos planillas externas en modo exclusivamente lectura."""
+    """Consulta solo valores de las dos planillas externas, sin exportar XLSX."""
     if (
         EXTERNAL_SUBJECTS_CACHE["records"] is not None
         and time.monotonic() - EXTERNAL_SUBJECTS_CACHE["loaded_at"] < EXTERNAL_SUBJECTS_CACHE_SECONDS
@@ -479,10 +479,36 @@ def download_external_subjects():
     records = []
     metadata = []
     for source, file_id in sources:
-        buffer, file_metadata = download_drive_file(file_id)
-        parsed = parse_workbook(buffer, source, default_year=colombia_today().year)
-        records.extend(parsed)
-        metadata.append({"source": source, **file_metadata})
+        service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+        if not service_json:
+            raise RuntimeError("Falta GOOGLE_SERVICE_ACCOUNT_JSON en Render.")
+        credentials = service_account.Credentials.from_service_account_info(
+            json.loads(service_json), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+        )
+        service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
+        spreadsheet = service.spreadsheets().get(
+            spreadsheetId=file_id,
+            fields="spreadsheetId,properties(title),sheets(properties(title,gridProperties(rowCount,columnCount)))",
+        ).execute()
+        for sheet in spreadsheet.get("sheets", []):
+            properties = sheet.get("properties", {})
+            title = properties.get("title", "")
+            grid = properties.get("gridProperties", {})
+            rows = min(int(grid.get("rowCount", 100)), 250)
+            columns = min(int(grid.get("columnCount", 26)), 40)
+            end_column = chr(64 + columns) if columns <= 26 else "AN"
+            values_response = service.spreadsheets().values().get(
+                spreadsheetId=file_id,
+                range=f"'{title}'!A1:{end_column}{rows}",
+                majorDimension="ROWS",
+            ).execute()
+            records.extend(parse_values(
+                values_response.get("values", []),
+                title,
+                source,
+                default_year=colombia_today().year,
+            ))
+        metadata.append({"source": source, "name": spreadsheet.get("properties", {}).get("title", "")})
     EXTERNAL_SUBJECTS_CACHE["records"] = records
     EXTERNAL_SUBJECTS_CACHE["metadata"] = metadata
     EXTERNAL_SUBJECTS_CACHE["loaded_at"] = time.monotonic()
