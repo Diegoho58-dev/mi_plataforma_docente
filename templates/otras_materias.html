@@ -7,6 +7,7 @@
   <label for="fuente">Fuente</label><select id="fuente" name="fuente"><option value="">Todas</option>{% for item in sources %}<option value="{{ item }}" {% if item == source_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
   <label for="materia">Materia</label><select id="materia" name="materia"><option value="">Todas las materias</option>{% for item in subjects %}<option value="{{ item }}" {% if item == subject_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
   <label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos los CLEI</option>{% for item in cleis %}<option value="{{ item }}" {% if item == request.args.get('clei','') %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label for="fecha">Fecha de clase</label><select id="fecha" name="fecha"><option value="">Todas las fechas</option>{% for date_key, date_label in date_options %}<option value="{{ date_key }}" {% if date_key == request.args.get('fecha','') %}selected{% endif %}>{{ date_label }}</option>{% endfor %}</select>
   <label for="buscar">Buscar estudiante</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Nombre o identificación">
   <button class="primary-button" type="submit">Filtrar</button>
 </form></section>
@@ -14,6 +15,5 @@
 <section class="panel matrix-wrap"><table class="matrix external-matrix"><thead><tr><th class="student-column">Estudiante</th>{% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}</tr></thead><tbody>
 {% for student in matrix %}<tr><td class="student-column"><span class="student-name">{{ student.name or 'Sin nombre' }}</span><span class="student-meta">{{ student.clei }} · {{ student.group }}<br>{{ student.identification }}</span></td>{% for date_key, date_label in dates %}<td>{% for cell in student.dates.get(date_key, []) %}<span class="cell-line external-subject">{{ cell.subject }}</span><span class="cell-line {% if cell.attendance|lower in ['si','sí'] %}attendance-yes{% elif cell.attendance|lower == 'no' %}attendance-no{% endif %}">Asis.: {{ cell.attendance or '—' }}</span><span class="cell-line grade">Nota: {{ cell.grade or '—' }}</span>{% else %}<span class="empty-cell">—</span>{% endfor %}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ dates|length + 1 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>{% endfor %}
 </tbody></table></section>
-<p class="subtitle">La fecha mostrada es la fecha escrita en la asignatura. La plataforma no usa promedios ni totales y no mueve las fechas de recuperación.</p>
+<p class="subtitle">Cada columna corresponde a una fecha de clase tomada del encabezado. Primero puedes filtrar por fecha y CLEI; luego se muestran los estudiantes, asistencia y nota de esa clase. No se usan promedios ni totales.</p>
 {% endblock %}
-
