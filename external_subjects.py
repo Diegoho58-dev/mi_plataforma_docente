@@ -38,6 +38,14 @@ DATE_RE = re.compile(
     r"(?:\s*(?:/|-|–)\s*(\d{2,4}))?(?!\d)"
 )
 
+SPANISH_DATE_RE = re.compile(
+    r"(?<!\d)(\d{1,2})\s*(?:de\s+)?"
+    r"(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|"
+    r"octubre|noviembre|diciembre)"
+    r"(?:\s+(?:de\s+)?(\d{2,4}))?(?!\d)",
+    re.IGNORECASE,
+)
+
 
 def clean(value):
     if value is None:
@@ -89,6 +97,22 @@ def extract_dates(text, default_year=2026):
         parsed = parse_date_token(match.group(1), match.group(2), year)
         if parsed and parsed not in result:
             result.append(parsed)
+    months = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
+        "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
+        "septiembre": 9, "setiembre": 9, "octubre": 10,
+        "noviembre": 11, "diciembre": 12,
+    }
+    for match in SPANISH_DATE_RE.finditer(clean(text)):
+        year = int(match.group(3) or default_year)
+        if year < 100:
+            year += 2000
+        try:
+            parsed = date(year, months[normalize(match.group(2))], int(match.group(1)))
+        except (KeyError, TypeError, ValueError):
+            parsed = None
+        if parsed and parsed not in result:
+            result.append(parsed)
     return result
 
 
@@ -138,12 +162,9 @@ def _subject_columns(rows, header_index):
                 continue
             if not any(item[0] == label and item[1] == column for item in found):
                 found.append((label, column, row_index))
-    # Una materia puede aparecer en más de una celda por el formato visual;
-    # se conserva la primera columna de su bloque.
-    result = {}
-    for label, column, row_index in found:
-        result.setdefault(label, (column, row_index))
-    return result
+    # No se deduplican las materias: una misma asignatura puede tener varias
+    # clases y cada aparición puede tener una fecha distinta en el encabezado.
+    return found
 
 
 def _teacher_map(rows, header_index):
@@ -240,7 +261,7 @@ def parse_workbook(buffer, source, default_year=2026):
         teachers = _teacher_map(preview, header_index)
         block = sheet_block_label(worksheet.title, source)
         subject_specs = []
-        for subject, (start_column, _) in columns.items():
+        for subject, start_column, _ in columns:
             if is_own_subject(subject):
                 continue
             dates_by_clei = _subject_date_map(
@@ -297,7 +318,7 @@ def parse_values(values, sheet_title, source, default_year=2026):
     teachers = _teacher_map(rows, header_index)
     block = sheet_block_label(sheet_title, source)
     subject_specs = []
-    for subject, (start_column, _) in columns.items():
+    for subject, start_column, _ in columns:
         if is_own_subject(subject):
             continue
         dates_by_clei = _subject_date_map(_header_text(rows, start_column, header_index), default_year)
@@ -360,7 +381,7 @@ def summarize(records):
 
 
 __all__ = [
-    "parse_workbook", "mark_week_mismatches", "summarize",
+    "parse_workbook", "parse_values", "build_external_matrix", "mark_week_mismatches", "summarize",
     "EXTERNAL_SUBJECTS", "OWN_SUBJECT_MARKERS",
 ]
 
