@@ -40,7 +40,7 @@ PLANNING_ONLY_FRIDAY = os.environ.get("PLANNING_ONLY_FRIDAY", "false").strip().l
 DEFAULT_PLANNING_DRIVE_FILE_ID = "1qNzaB4pFeNUUQPRJ48Ay-afEuwvxbPCu"
 EXTERNAL_HIGH_CLEI_FILE_ID = os.environ.get("EXTERNAL_HIGH_CLEI_FILE_ID", "1i8fwoPaqB7vzw07Xt2K4oDji4QH3cMuTj9O1xxG8Cjw")
 EXTERNAL_MULTIGRADE_FILE_ID = os.environ.get("EXTERNAL_MULTIGRADE_FILE_ID", "1i1T_NlN_j7DAt0GNnfSVeR4dGRol_36ysDdwLFU_3KQ")
-EXTERNAL_SUBJECTS_ENABLED = os.environ.get("EXTERNAL_SUBJECTS_ENABLED", "false").strip().lower() == "true"
+EXTERNAL_SUBJECTS_ENABLED = os.environ.get("EXTERNAL_SUBJECTS_ENABLED", "true").strip().lower() == "true"
 CURRICULUM_CACHE = {"modified_time": None, "topics": None, "pages": None, "loaded_at": 0}
 CURRICULUM_CACHE_SECONDS = int(os.environ.get("CURRICULUM_CACHE_SECONDS", "300"))
 EXTERNAL_SUBJECTS_CACHE = {"records": None, "metadata": [], "loaded_at": 0}
