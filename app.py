@@ -1808,9 +1808,12 @@ def otras_materias():
             "drive_updated": "; ".join(f"{item['source']}: {item.get('modifiedTime', '')}" for item in metadata),
         })
         return render_template("otras_materias.html", current_user=session.get("user"), **page_data)
-    except Exception:
+    except Exception as exc:
         app.logger.exception("No se pudieron leer las planillas externas de otras materias")
-        page_data["data_error"] = "No se pudieron leer las planillas externas. Verifica que la cuenta de servicio tenga acceso de lectura a ambos archivos."
+        # Mostrar únicamente el tipo y el texto del error de Google; nunca se
+        # incluye el JSON de credenciales ni tokens en la respuesta.
+        detail = f"{type(exc).__name__}: {str(exc)}".replace("\n", " ")[:500]
+        page_data["data_error"] = f"Error real de Google Sheets: {detail}"
         return render_template("otras_materias.html", current_user=session.get("user"), **page_data)
 
 
