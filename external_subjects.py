@@ -287,6 +287,48 @@ def parse_workbook(buffer, source, default_year=2026):
     return records
 
 
+def parse_values(values, sheet_title, source, default_year=2026):
+    """Parsea valores 2D entregados por Google Sheets API, sin descargar XLSX."""
+    rows = [[clean(value) for value in row] for row in (values or [])]
+    header_index = _header_row(rows)
+    if header_index is None:
+        return []
+    columns = _subject_columns(rows, header_index)
+    teachers = _teacher_map(rows, header_index)
+    block = sheet_block_label(sheet_title, source)
+    subject_specs = []
+    for subject, (start_column, _) in columns.items():
+        if is_own_subject(subject):
+            continue
+        dates_by_clei = _subject_date_map(_header_text(rows, start_column, header_index), default_year)
+        subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado")))
+
+    records = []
+    for row in rows[header_index + 1:]:
+        if not _is_data_row(row):
+            continue
+        clei = clean(row[3] if len(row) > 3 else "")
+        group = clean(row[4] if len(row) > 4 else "")
+        key = clei_key(clei)
+        for subject, start_column, dates_by_clei, teacher in subject_specs:
+            class_date = dates_by_clei.get(key) or dates_by_clei.get("__default__")
+            attendance = clean(row[start_column] if start_column < len(row) else "")
+            grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
+            if not attendance and not grade:
+                continue
+            records.append({
+                "source": source, "sheet": clean(sheet_title), "block": block,
+                "subject": subject, "teacher": teacher,
+                "context": context_for(source, group, clei), "clei": clei, "group": group,
+                "student": clean(row[1]), "identification": clean(row[2]),
+                "attendance": attendance, "grade": grade, "observation": "",
+                "class_date": class_date,
+                "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
+                "week_mismatch": False,
+            })
+    return records
+
+
 def mark_week_mismatches(records, cycle_for_date=None):
     """Marca fechas fuera del bloque solo cuando el bloque tiene una semana explícita.
 
