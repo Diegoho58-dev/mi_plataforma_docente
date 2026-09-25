@@ -624,7 +624,7 @@ def update_native_google_sheet(created):
                 "rows": [
                     {"values": [
                         {"userEnteredValue": {"stringValue": cell.get("theme", "")}},
-                        {"userEnteredValue": {"stringValue": ""}},
+                        {"userEnteredValue": {"stringValue": cell.get("page", "")}},
                         {"userEnteredValue": {"stringValue": cell.get("objective", "")}},
                         {"userEnteredValue": {"stringValue": cell.get("activity", "")}},
                         {"userEnteredValue": {"stringValue": cell.get("status", "")}},
@@ -978,6 +978,34 @@ def read_additional_planning_rows(buffer):
             if current_score > previous_score:
                 consolidated[previous_index] = item
     return consolidated
+
+
+def latest_planning_by_subject_group(buffer):
+    """Devuelve el último registro de planeación disponible por materia y CLEI."""
+    latest = {}
+    for item in read_additional_planning_rows(buffer):
+        key = (item.get("subject", ""), item.get("group", ""))
+        previous = latest.get(key)
+        if previous is None or item.get("week_number", 0) >= previous.get("week_number", 0):
+            combined = " ".join(
+                clean_text(item.get(field, ""))
+                for field in ("theme", "observations", "status")
+            )
+            normalized = normalize_header(combined)
+            if is_no_class(item.get("theme", ""), item.get("observations", "")):
+                execution_status = "No se dictó / hubo novedad"
+            elif "sin novedad" in normalized or "sin novedades" in normalized:
+                execution_status = "Se dictó sin novedad"
+            else:
+                execution_status = "Registro disponible; revisar novedades"
+            latest[key] = {
+                "theme": item.get("theme", "") or "Sin tema registrado",
+                "date_label": item.get("date_label", "Fecha por definir"),
+                "status": item.get("status", "") or "Sin estado registrado",
+                "execution_status": execution_status,
+                "week": item.get("week", ""),
+            }
+    return latest
 
 
 def planning_examples(buffer, subject, clei, limit=5):
@@ -1374,7 +1402,7 @@ def actualizar_planeacion():
     today=colombia_today()
     friday=today.weekday()==4
     cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI 5-6"]
-    page={"options": options, "cleis": cleis, "topics_by_subject": {item["value"]: {clei: [] for clei in cleis} for item in options}, "pages_by_subject": {item["value"]: {clei: {} for clei in cleis} for item in options}, "selected": [], "selected_cleis": {}, "selected_themes": {}, "selected_pages": {}, "selected_objectives": {}, "selected_articulations": {}, "proposals": {}, "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
+    page={"options": options, "cleis": cleis, "topics_by_subject": {item["value"]: {clei: [] for clei in cleis} for item in options}, "pages_by_subject": {item["value"]: {clei: {} for clei in cleis} for item in options}, "last_planning": {}, "selected": [], "selected_cleis": {}, "selected_themes": {}, "selected_pages": {}, "selected_objectives": {}, "selected_articulations": {}, "proposals": {}, "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
         curriculum_buffer = None
         if DRIVE_ENABLED:
@@ -1399,6 +1427,8 @@ def actualizar_planeacion():
                 CURRICULUM_CACHE["topics"] = page["topics_by_subject"]
                 CURRICULUM_CACHE["pages"] = page["pages_by_subject"]
                 CURRICULUM_CACHE["loaded_at"] = time.monotonic()
+            planning_preview_buffer, _ = download_planning_from_drive()
+            page["last_planning"] = latest_planning_by_subject_group(planning_preview_buffer)
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
