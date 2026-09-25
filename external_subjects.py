@@ -490,18 +490,22 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
 
     for student in students.values():
         absences = 0
+        absences_by_subject = {}
         grades_by_subject = {}
         for cells in student["dates"].values():
             for cell in cells:
                 attendance = normalize(cell.get("attendance", ""))
                 if attendance in {"no", "no asistio", "ausente", "inasistente"}:
                     absences += 1
+                    absences_by_subject[cell["subject"]] = absences_by_subject.get(cell["subject"], 0) + 1
                 grade_text = clean(cell.get("grade", "")).replace(",", ".")
                 try:
                     grades_by_subject.setdefault(cell["subject"], []).append(float(grade_text))
                 except (TypeError, ValueError):
                     pass
         student["absences"] = absences
+        student["absences_by_subject"] = absences_by_subject
+        student["total_absences"] = absences
         student["subject_averages"] = {
             subject: round(sum(grades) / len(grades), 2)
             for subject, grades in grades_by_subject.items()
