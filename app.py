@@ -1686,6 +1686,34 @@ def external_absence_totals(records):
     return totals
 
 
+def attendance_scope_context(item):
+    if "class_date" in item:
+        return "Multigrado" if item.get("source") == "Multigrado / Mediana" else "Alta"
+    return item.get("context", "")
+
+
+def matches_attendance_scope(item, clei_filters=None, context_filter="", cycle_filters=None,
+                             week_filters=None, start_date=None, end_date=None):
+    clei_filters = set(clei_filters or [])
+    cycle_filters = {str(value) for value in (cycle_filters or [])}
+    week_filters = {str(value) for value in (week_filters or [])}
+    item_date = item.get("class_date") if "class_date" in item else item.get("date")
+    cycle = cycle_for_date(item_date)
+    if clei_filters and item.get("clei") not in clei_filters:
+        return False
+    if context_filter and attendance_scope_context(item) != context_filter:
+        return False
+    if cycle_filters and (not cycle or str(cycle["cycle"]) not in cycle_filters):
+        return False
+    if week_filters and (not cycle or str(cycle["week"]) not in week_filters):
+        return False
+    if start_date and (not item_date or item_date < start_date):
+        return False
+    if end_date and (not item_date or item_date > end_date):
+        return False
+    return True
+
+
 @app.route("/asistencia")
 @login_required
 def asistencia():
@@ -1760,17 +1788,7 @@ def asistencia():
         attendance_by_student = {}
         for item in records:
             cycle = cycle_for_date(item["date"])
-            if clei_filter and item["clei"] not in clei_filter:
-                continue
-            if context_filter and item["context"] != context_filter:
-                continue
-            if cycle_filter and (not cycle or str(cycle["cycle"]) not in cycle_filter):
-                continue
-            if week_filter and (not cycle or str(cycle["week"]) not in week_filter):
-                continue
-            if start_date and (not item["date"] or item["date"] < start_date):
-                continue
-            if end_date and (not item["date"] or item["date"] > end_date):
+            if not matches_attendance_scope(item, clei_filter, context_filter, cycle_filter, week_filter, start_date, end_date):
                 continue
 
             math_status = attendance_value(item["math_attendance"]) if (item["math_attendance"] or item["math_grade"]) else "Sin registro"
@@ -1909,6 +1927,13 @@ def otras_materias():
         "cleis": [],
         "teachers": [],
         "contexts": [],
+        "cycles": [],
+        "weeks": [1, 2, 3],
+        "clei_filter": [],
+        "cycle_filter": [],
+        "week_filter": [],
+        "start_date": "",
+        "end_date": "",
         "source_filter": request.args.get("fuente", "").strip(),
         "subject_filter": request.args.get("materia", "").strip(),
         "teacher_filter": request.args.get("profesora", "").strip(),
@@ -1928,10 +1953,44 @@ def otras_materias():
     try:
         all_records, metadata = download_external_subjects()
         mark_week_mismatches(all_records, cycle_for_date)
+        clei_filter = request.args.getlist("clei")
+        context_filter = request.args.get("contexto", "").strip()
+        cycle_filter = request.args.getlist("ciclo")
+        week_filter = request.args.getlist("semana")
+        start_date_text = request.args.get("desde", "").strip()
+        end_date_text = request.args.get("hasta", "").strip()
+        try:
+            start_date = datetime.strptime(start_date_text, "%Y-%m-%d").date() if start_date_text else None
+        except ValueError:
+            start_date_text, start_date = "", None
+        try:
+            end_date = datetime.strptime(end_date_text, "%Y-%m-%d").date() if end_date_text else None
+        except ValueError:
+            end_date_text, end_date = "", None
+        if start_date and end_date and start_date > end_date:
+            start_date, end_date = end_date, start_date
+            start_date_text, end_date_text = end_date_text, start_date_text
+        cleis = sorted({item["clei"] for item in all_records})
+        contexts = ["Alta", "Multigrado"]
+        cycles = sorted({cycle_for_date(item.get("class_date"))["cycle"] for item in all_records if cycle_for_date(item.get("class_date"))})
+        weeks = [1, 2, 3]
+        clei_filter = [value for value in clei_filter if value in cleis]
+        cycle_filter = [value for value in cycle_filter if value in {str(item) for item in cycles}]
+        week_filter = [value for value in week_filter if value in {str(item) for item in weeks}]
+        if context_filter not in contexts:
+            context_filter = ""
         page_data["subjects"] = sorted({item["subject"] for item in all_records})
-        page_data["cleis"] = sorted({item["clei"] for item in all_records})
+        page_data["cleis"] = cleis
         page_data["teachers"] = sorted({item["teacher"] for item in all_records})
-        page_data["contexts"] = sorted({item["context"] for item in all_records})
+        page_data["contexts"] = contexts
+        page_data["cycles"] = cycles
+        page_data["weeks"] = weeks
+        page_data["clei_filter"] = clei_filter
+        page_data["context_filter"] = context_filter
+        page_data["cycle_filter"] = cycle_filter
+        page_data["week_filter"] = week_filter
+        page_data["start_date"] = start_date_text
+        page_data["end_date"] = end_date_text
         page_data["date_options"] = sorted({
             (item["class_date"].isoformat(), item["class_date_label"])
             for item in all_records if item.get("class_date")
@@ -1939,10 +1998,10 @@ def otras_materias():
         needle = normalize_header(page_data["search"])
         records = [
             item for item in all_records
+            if matches_attendance_scope(item, clei_filter, context_filter, cycle_filter, week_filter, start_date, end_date)
             if (not page_data["source_filter"] or item["source"] == page_data["source_filter"])
             and (not page_data["subject_filter"] or item["subject"] == page_data["subject_filter"])
             and (not page_data["teacher_filter"] or item["teacher"] == page_data["teacher_filter"])
-            and (not page_data["context_filter"] or item["context"] == page_data["context_filter"])
             and (not page_data["date_filter"] or (item.get("class_date") and item["class_date"].isoformat() == page_data["date_filter"]))
             and (not page_data["only_mismatches"] or item["week_mismatch"])
             and (not needle or needle in normalize_header(" ".join(str(item.get(key, "")) for key in ("student", "identification", "group", "subject", "teacher", "clei"))))
@@ -1950,7 +2009,7 @@ def otras_materias():
         records.sort(key=lambda item: (item.get("class_date") or date.min, item["student"]), reverse=True)
         matrix, dates = build_external_matrix(
             records,
-            clei_filter=request.args.get("clei", "").strip(),
+            clei_filter="",
         )
         page_data.update({
             "records": records,
