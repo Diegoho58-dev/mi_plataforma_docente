@@ -1,7 +1,7 @@
 import io
 from openpyxl import Workbook
 
-from external_subjects import _subject_date_map, clei_key, consolidate_records, parse_workbook, student_clei, summarize
+from external_subjects import _subject_date_map, build_external_matrix, clei_key, consolidate_records, parse_workbook, student_clei, summarize
 
 header_dates = _subject_date_map(
     "ESPAÑOL ALF: Comprensión 09-07-2026 / 16-07-2026 "
@@ -33,6 +33,12 @@ duplicate = {
 completed = dict(duplicate, grade="4.5")
 merged = consolidate_records([duplicate, completed])
 assert len(merged) == 1 and merged[0]["grade"] == "4.5"
+
+matrix, dates = build_external_matrix([
+    {"source": "Alta", "sheet": "1", "subject": "Español", "clei": "CLEI 3B", "group": "GRUPO 3", "student": "PEREZ", "identification": "123", "class_date": header_dates["CLEI 2"][0], "attendance": "No", "grade": "4,0", "block": "Hoja 1", "week_mismatch": False},
+    {"source": "Alta", "sheet": "3", "subject": "Español", "clei": "CLEI 3B", "group": "GRUPO 3", "student": "PEREZ", "identification": "123", "class_date": header_dates["CLEI 3A"][0], "attendance": "Si", "grade": "5", "block": "Hoja 3", "week_mismatch": False},
+])
+assert len(matrix) == 1 and matrix[0]["absences"] == 1 and matrix[0]["subject_averages"]["Español"] == 4.5
 
 workbook = Workbook()
 sheet = workbook.active
