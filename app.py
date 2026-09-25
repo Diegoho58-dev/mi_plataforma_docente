@@ -1885,10 +1885,7 @@ def otras_materias():
         records.sort(key=lambda item: (item.get("class_date") or date.min, item["student"]), reverse=True)
         matrix, dates = build_external_matrix(
             records,
-            page_data["source_filter"],
-            page_data["subject_filter"],
-            request.args.get("clei", "").strip(),
-            page_data["search"],
+            clei_filter=request.args.get("clei", "").strip(),
         )
         page_data.update({
             "records": records,
