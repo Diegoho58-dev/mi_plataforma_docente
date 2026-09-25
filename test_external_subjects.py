@@ -1,7 +1,7 @@
 import io
 from openpyxl import Workbook
 
-from external_subjects import _subject_date_map, consolidate_records, parse_workbook, summarize
+from external_subjects import _subject_date_map, clei_key, consolidate_records, parse_workbook, summarize
 
 header_dates = _subject_date_map(
     "ESPAÑOL ALF: Comprensión 09-07-2026 / 16-07-2026 "
@@ -16,6 +16,11 @@ assert header_dates["CLEI 3B"][0].isoformat() == "2026-07-08"
 assert header_dates["CLEI 4"][0].isoformat() == "2026-07-21"
 assert header_dates["CLEI 5-6"][0].isoformat() == "2026-07-07"
 assert header_dates["MULTIGRADO"][0].isoformat() == "2026-07-09"
+assert clei_key("2") == "CLEI 2"
+assert clei_key("3A") == "CLEI 3A"
+assert clei_key("3B") == "CLEI 3B"
+assert clei_key("4") == "CLEI 4"
+assert clei_key("5-6") == "CLEI 5-6"
 
 duplicate = {
     "source": "Alta y CLEI normal", "sheet": "Semana 1", "subject": "Español",
