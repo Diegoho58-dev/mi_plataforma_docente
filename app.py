@@ -1705,11 +1705,10 @@ def asistencia():
         records = read_student_records(buffer)
         try:
             external_records, _ = download_external_subjects()
-            external_absences = external_absence_totals(external_records)
             external_absence_error = None
         except Exception as external_exc:
             app.logger.warning("No se pudieron consolidar faltas de Otras materias: %s", external_exc)
-            external_absences = {}
+            external_records = []
             external_absence_error = "No se pudieron cargar las faltas de Otras materias."
         clei_filter = request.args.getlist("clei")
         cycle_filter = request.args.getlist("ciclo")
@@ -1737,6 +1736,25 @@ def asistencia():
         clei_filter = [value for value in clei_filter if value in cleis]
         cycle_filter = [value for value in cycle_filter if value in {str(item) for item in cycles}]
         week_filter = [value for value in week_filter if value in {str(item) for item in weeks}]
+
+        filtered_external_records = []
+        for external_item in external_records:
+            external_context = "Multigrado" if external_item.get("source") == "Multigrado / Mediana" else "Alta"
+            external_cycle = cycle_for_date(external_item.get("class_date"))
+            if clei_filter and external_item.get("clei") not in clei_filter:
+                continue
+            if context_filter and external_context != context_filter:
+                continue
+            if cycle_filter and (not external_cycle or str(external_cycle["cycle"]) not in cycle_filter):
+                continue
+            if week_filter and (not external_cycle or str(external_cycle["week"]) not in week_filter):
+                continue
+            if start_date and (not external_item.get("class_date") or external_item["class_date"] < start_date):
+                continue
+            if end_date and (not external_item.get("class_date") or external_item["class_date"] > end_date):
+                continue
+            filtered_external_records.append(external_item)
+        external_absences = external_absence_totals(filtered_external_records)
 
         rows = []
         attendance_by_student = {}
