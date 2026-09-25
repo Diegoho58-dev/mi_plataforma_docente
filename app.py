@@ -981,16 +981,27 @@ def read_additional_planning_rows(buffer):
 
 
 def latest_planning_by_subject_group(buffer):
-    """Devuelve el último registro de planeación disponible por materia y CLEI."""
+    """Devuelve la última clase dictada por materia y CLEI desde el Excel base."""
+    menu_clei = {
+        "CLEI 1": "CLEI I",
+        "CLEI 2": "CLEI II",
+        "CLEI 3": "CLEI III",
+        "CLEI 4": "CLEI IV",
+        "CLEI 5-6": "CLEI 5-6",
+    }
     latest = {}
-    for item in read_additional_planning_rows(buffer):
-        key = (item.get("subject", ""), item.get("group", ""))
+    for item in read_planning_rows(buffer):
+        normalized_group = normalize_planning_clei(item.get("group", ""))
+        if not normalized_group:
+            normalized_group = normalize_planning_clei(item.get("source", ""))
+        display_group = menu_clei.get(normalized_group, item.get("group", ""))
+        class_date = item.get("date")
+        if not class_date or not display_group:
+            continue
+        key = (item.get("subject", ""), display_group)
         previous = latest.get(key)
-        if previous is None or item.get("week_number", 0) >= previous.get("week_number", 0):
-            combined = " ".join(
-                clean_text(item.get(field, ""))
-                for field in ("theme", "observations", "status")
-            )
+        if previous is None or class_date >= previous["date"]:
+            combined = f"{item.get('theme', '')} {item.get('observations', '')}"
             normalized = normalize_header(combined)
             if is_no_class(item.get("theme", ""), item.get("observations", "")):
                 execution_status = "No se dictó / hubo novedad"
@@ -1000,10 +1011,11 @@ def latest_planning_by_subject_group(buffer):
                 execution_status = "Registro disponible; revisar novedades"
             latest[key] = {
                 "theme": item.get("theme", "") or "Sin tema registrado",
+                "date": class_date,
                 "date_label": item.get("date_label", "Fecha por definir"),
-                "status": item.get("status", "") or "Sin estado registrado",
+                "status": item.get("observations", "") or "Sin novedad registrada",
                 "execution_status": execution_status,
-                "week": item.get("week", ""),
+                "week": item.get("week", "") or "Clase dictada",
             }
     return latest
 
@@ -1427,8 +1439,9 @@ def actualizar_planeacion():
                 CURRICULUM_CACHE["topics"] = page["topics_by_subject"]
                 CURRICULUM_CACHE["pages"] = page["pages_by_subject"]
                 CURRICULUM_CACHE["loaded_at"] = time.monotonic()
-            planning_preview_buffer, _ = download_planning_from_drive()
-            page["last_planning"] = latest_planning_by_subject_group(planning_preview_buffer)
+            if curriculum_buffer is None:
+                curriculum_buffer, _ = download_excel_from_drive()
+            page["last_planning"] = latest_planning_by_subject_group(curriculum_buffer)
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
