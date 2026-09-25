@@ -267,7 +267,8 @@ def curriculum_topics(buffer, subject, group, workbook=None):
         return bool(re.match(r"^(tema|temas|contenido|contenidos|eje tematic|saber|saberes)(?:\s|/|-|:|\(|$)", normalized))
 
     def is_numeric(value):
-        return bool(re.fullmatch(r"\d+(?:[.,]\d+)?", clean_text(value)))
+        text = normalize_header(value)
+        return bool(re.fullmatch(r"(?:p(?:ag|agina)?s?\.?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:[-–/]|a|y)\s*\d+(?:[.,]\d+)?)?", text))
 
     def header_group_key(value):
         """Acepta encabezados como CLEI I, CLEI 1, I o 1."""
@@ -416,13 +417,33 @@ def curriculum_topic_pages(buffer, subject, group, topics=None, workbook=None):
         sheet_key = re.sub(r"[^a-z0-9]", "", normalize_header(worksheet.title))
         if sheet_key not in sheet_aliases:
             continue
-        for values in worksheet.iter_rows(values_only=True):
-            cells = [clean_text(value) for value in values]
-            for index, cell in enumerate(cells[:-1]):
+        rows = [[clean_text(value) for value in values] for values in worksheet.iter_rows(values_only=True)]
+        for row_index, cells in enumerate(rows):
+            for column, cell in enumerate(cells):
                 topic = topic_keys.get(normalize_header(cell))
-                if not topic or not is_page_value(cells[index + 1]):
+                if not topic:
                     continue
-                pages[topic] = normalize_page(cells[index + 1])
+
+                # Formato habitual: el número de página está inmediatamente
+                # a la derecha del tema. También se aceptan hasta tres celdas
+                # siguientes porque algunas mallas dejan columnas vacías.
+                for candidate in cells[column + 1:column + 4]:
+                    if is_page_value(candidate):
+                        pages[topic] = normalize_page(candidate)
+                        break
+                if pages[topic]:
+                    continue
+
+                # Algunos archivos colocan la página debajo del tema o usan
+                # una celda combinada. Revisamos la fila siguiente y la celda
+                # contigua para no perder el vínculo tema-página.
+                for next_row in rows[row_index + 1:row_index + 3]:
+                    for candidate_column in (column, column + 1, column + 2):
+                        if candidate_column < len(next_row) and is_page_value(next_row[candidate_column]):
+                            pages[topic] = normalize_page(next_row[candidate_column])
+                            break
+                    if pages[topic]:
+                        break
         break
     return pages
 
