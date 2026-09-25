@@ -287,7 +287,11 @@ def parse_workbook(buffer, source, default_year=2026):
             for subject, start_column, dates_by_clei, teacher in subject_specs:
                 if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                     continue
-                class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
+                class_dates = dates_by_clei.get(key)
+                if class_dates is None and len(dates_by_clei) == 1 and "__default__" in dates_by_clei:
+                    class_dates = dates_by_clei["__default__"]
+                if not class_dates:
+                    continue
                 attendance = clean(row[start_column] if start_column < len(row) else "")
                 grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
                 # Las columnas PROM./ASIST. y los totales están después de las
@@ -343,7 +347,11 @@ def parse_values(values, sheet_title, source, default_year=2026):
         for subject, start_column, dates_by_clei, teacher in subject_specs:
             if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                 continue
-            class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
+            class_dates = dates_by_clei.get(key)
+            if class_dates is None and len(dates_by_clei) == 1 and "__default__" in dates_by_clei:
+                class_dates = dates_by_clei["__default__"]
+            if not class_dates:
+                continue
             attendance = clean(row[start_column] if start_column < len(row) else "")
             grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
             if not attendance and not grade:
@@ -360,6 +368,25 @@ def parse_values(values, sheet_title, source, default_year=2026):
                     "week_mismatch": False,
                 })
     return records
+
+
+def consolidate_records(records):
+    """Consolida asistencia y nota por hoja, estudiante, CLEI, materia y fecha."""
+    consolidated = {}
+    for item in records:
+        key = (
+            item.get("source", ""), item.get("sheet", ""), item.get("subject", ""),
+            item.get("clei", ""), item.get("group", ""), item.get("student", ""),
+            item.get("identification", ""), item.get("class_date"),
+        )
+        current = consolidated.get(key)
+        if current is None:
+            consolidated[key] = dict(item)
+            continue
+        for field in ("attendance", "grade", "teacher"):
+            if not current.get(field) and item.get(field):
+                current[field] = item[field]
+    return list(consolidated.values())
 
 
 def mark_week_mismatches(records, cycle_for_date=None):
@@ -397,7 +424,7 @@ def summarize(records):
 
 
 __all__ = [
-    "parse_workbook", "parse_values", "build_external_matrix", "mark_week_mismatches", "summarize",
+    "parse_workbook", "parse_values", "consolidate_records", "build_external_matrix", "mark_week_mismatches", "summarize",
     "EXTERNAL_SUBJECTS", "OWN_SUBJECT_MARKERS",
 ]
 
