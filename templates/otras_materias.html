@@ -1,19 +1,92 @@
 {% extends "base.html" %}
 {% block title %}Otras materias | Panel Docente{% endblock %}
 {% block content %}
-<section class="welcome-section"><p class="eyebrow">ESTUDIANTES</p><h1>Otras materias por fecha y CLEI</h1><p class="subtitle">Vista tipo Mis grupos para consultar asistencia y notas individuales de Español, Ciencias Sociales e Inglés.</p></section>
+<section class="welcome-section">
+  <p class="eyebrow">ESTUDIANTES</p>
+  <h1>Otras materias por fecha y CLEI</h1>
+  <p class="subtitle">Consulta asistencia y notas individuales de Español, Ciencias Sociales e Inglés, organizadas por cada fecha real de clase.</p>
+</section>
+
 {% if data_error %}<div class="notice">{{ data_error }}</div>{% endif %}
-<section class="groups-toolbar external-groups-toolbar"><form method="get" action="{{ url_for('otras_materias') }}">
-  <label for="fuente">Fuente</label><select id="fuente" name="fuente"><option value="">Todas</option>{% for item in sources %}<option value="{{ item }}" {% if item == source_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
-  <label for="materia">Materia</label><select id="materia" name="materia"><option value="">Todas las materias</option>{% for item in subjects %}<option value="{{ item }}" {% if item == subject_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
-  <label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos los CLEI</option>{% for item in cleis %}<option value="{{ item }}" {% if item == request.args.get('clei','') %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
-  <label for="fecha">Fecha de clase</label><select id="fecha" name="fecha"><option value="">Todas las fechas</option>{% for date_key, date_label in date_options %}<option value="{{ date_key }}" {% if date_key == request.args.get('fecha','') %}selected{% endif %}>{{ date_label }}</option>{% endfor %}</select>
-  <label for="buscar">Buscar estudiante</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Nombre o identificación">
-  <button class="primary-button" type="submit">Filtrar</button>
-</form></section>
-<section class="group-summary"><div class="group-summary-card"><strong>{{ matrix|length }}</strong><span>Estudiantes mostrados</span></div><div class="group-summary-card"><strong>{{ dates|length }}</strong><span>Fechas de clase</span></div><div class="group-summary-card"><strong>{{ summary.records }}</strong><span>Registros de asistencia y nota</span></div></section>
-<section class="panel matrix-wrap"><table class="matrix external-matrix"><thead><tr><th class="student-column">Estudiante</th>{% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}</tr></thead><tbody>
-{% for student in matrix %}<tr><td class="student-column"><span class="student-name">{{ student.name or 'Sin nombre' }}</span><span class="student-meta">{{ student.clei }} · {{ student.group }}<br>{{ student.identification }}</span></td>{% for date_key, date_label in dates %}<td>{% for cell in student.dates.get(date_key, []) %}<span class="cell-line external-subject">{{ cell.subject }}</span><span class="cell-line {% if cell.attendance|lower in ['si','sí'] %}attendance-yes{% elif cell.attendance|lower == 'no' %}attendance-no{% endif %}">Asis.: {{ cell.attendance or '—' }}</span><span class="cell-line grade">Nota: {{ cell.grade or '—' }}</span>{% else %}<span class="empty-cell">—</span>{% endfor %}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ dates|length + 1 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>{% endfor %}
-</tbody></table></section>
-<p class="subtitle">Cada columna corresponde a una fecha de clase tomada del encabezado. Primero puedes filtrar por fecha y CLEI; luego se muestran los estudiantes, asistencia y nota de esa clase. No se usan promedios ni totales.</p>
+<div class="data-alert alert-info external-reading-note">
+  <strong>Lectura de fechas:</strong> Alta puede tener dos semanas en una misma hoja y Multigrado / Mediana una semana por hoja. Las fechas que no coinciden con la semana de la hoja se conservan y aparecen como <strong>Recuperación</strong>.
+</div>
+
+<section class="groups-toolbar external-groups-toolbar">
+  <form method="get" action="{{ url_for('otras_materias') }}">
+    <label for="fuente">Fuente</label>
+    <select id="fuente" name="fuente">
+      <option value="">Todas</option>
+      {% for item in sources %}<option value="{{ item }}" {% if item == source_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select>
+
+    <label for="materia">Materia</label>
+    <select id="materia" name="materia">
+      <option value="">Todas las materias</option>
+      {% for item in subjects %}<option value="{{ item }}" {% if item == subject_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select>
+
+    <label for="clei">CLEI</label>
+    <select id="clei" name="clei">
+      <option value="">Todos los CLEI</option>
+      {% for item in cleis %}<option value="{{ item }}" {% if item == request.args.get('clei','') %}selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select>
+
+    <label for="fecha">Fecha de clase</label>
+    <select id="fecha" name="fecha">
+      <option value="">Todas las fechas</option>
+      {% for date_key, date_label in date_options %}<option value="{{ date_key }}" {% if date_key == request.args.get('fecha','') %}selected{% endif %}>{{ date_label }}</option>{% endfor %}
+    </select>
+
+    <label for="buscar">Buscar estudiante</label>
+    <input id="buscar" name="buscar" value="{{ search }}" placeholder="Nombre o identificación">
+    <button class="primary-button" type="submit">Filtrar</button>
+  </form>
+</section>
+
+<section class="group-summary">
+  <div class="group-summary-card"><strong>{{ matrix|length }}</strong><span>Estudiantes mostrados</span></div>
+  <div class="group-summary-card"><strong>{{ dates|length }}</strong><span>Fechas de clase</span></div>
+  <div class="group-summary-card"><strong>{{ summary.records }}</strong><span>Registros de materias</span></div>
+  <div class="group-summary-card"><strong>{{ summary.mismatches }}</strong><span>Recuperaciones</span></div>
+</section>
+
+<section class="panel matrix-wrap">
+  <table class="matrix external-matrix">
+    <thead>
+      <tr>
+        <th class="student-column">Estudiante</th>
+        {% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in matrix %}
+      <tr>
+        <td class="student-column">
+          <span class="student-name">{{ student.name or 'Sin nombre' }}</span>
+          <span class="student-meta">{{ student.clei }} · {{ student.group }}<br>{{ student.identification }}</span>
+        </td>
+        {% for date_key, date_label in dates %}
+        <td>
+          {% for cell in student.dates.get(date_key, []) %}
+            <span class="cell-line external-subject">{{ cell.subject }}</span>
+            <span class="cell-line {% if cell.attendance|lower in ['si','sí','asistió','asistio'] %}attendance-yes{% elif cell.attendance|lower in ['no','no asistió','no asistio'] %}attendance-no{% endif %}">Asistencia: {{ cell.attendance or 'Sin registro' }}</span>
+            <span class="cell-line grade">Nota: {{ cell.grade or '—' }}</span>
+            <span class="cell-line external-meta">{{ cell.source }} · {{ cell.block }}</span>
+            {% if cell.week_mismatch %}<span class="recovery-badge">Recuperación</span>{% endif %}
+          {% else %}
+            <span class="empty-cell">—</span>
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ dates|length + 1 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<p class="subtitle">Cada columna representa una fecha encontrada en los encabezados de las materias. Una recuperación no se elimina ni se cambia de semana: se conserva en su fecha real y se identifica visualmente.</p>
 {% endblock %}
+
