@@ -51,7 +51,6 @@ records = parse_workbook(buffer, "Alta y CLEI normal", default_year=2026)
 assert any(item["subject"] == "Español" for item in records)
 assert not any(item["subject"] in {"Matemáticas", "Ciencias Naturales"} for item in records)
 assert summarize(records)["records"] >= 1
-assert {item["class_date"].isoformat() for item in records if item["subject"] == "Español"} == {"2026-08-01"}
+assert {item["class_date"].isoformat() for item in records if item["subject"] == "Español"} == {"2026-08-01", "2026-08-08"}
 print("OK: parser externo excluye Matemáticas/Ciencias y conserva registros detallados.")
 print("OK: parser externo conserva todas las fechas del encabezado.")
-
