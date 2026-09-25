@@ -106,3 +106,7 @@
 .external-groups-toolbar input { min-width: 220px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font: inherit; }
 .external-matrix .external-subject { color: var(--teal); font-weight: 800; }
 .external-matrix .date-column { min-width: 150px; }
+
+
+/* último registro en actualización de planeación */
+.last-planning-summary{display:flex;flex-direction:column;gap:3px;margin-bottom:12px;padding:10px 12px;border-left:3px solid var(--teal);border-radius:7px;background:#eef9f6;color:var(--ink);font-size:11px;line-height:1.4}.last-planning-summary strong{color:var(--navy);font-size:11px}.last-planning-summary span{color:#405365}.last-planning-summary small{margin-top:2px;color:var(--muted);font-size:10px}.last-planning-summary.is-empty{display:block;border-left-color:#cbd5da;color:var(--muted);background:#f7f9fa}
