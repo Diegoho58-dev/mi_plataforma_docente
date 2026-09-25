@@ -20,6 +20,12 @@
       {% for item in sources %}<option value="{{ item }}" {% if item == source_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}
     </select>
 
+    <label for="contexto">Contexto</label>
+    <select id="contexto" name="contexto">
+      <option value="">Todos los contextos</option>
+      {% for item in contexts %}<option value="{{ item }}" {% if item == context_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select>
+
     <label for="materia">Materia</label>
     <select id="materia" name="materia">
       <option value="">Todas las materias</option>
@@ -27,10 +33,26 @@
     </select>
 
     <label for="clei">CLEI</label>
-    <select id="clei" name="clei">
+    <select id="clei" name="clei" multiple size="4">
       <option value="">Todos los CLEI</option>
-      {% for item in cleis %}<option value="{{ item }}" {% if item == request.args.get('clei','') %}selected{% endif %}>{{ item }}</option>{% endfor %}
+      {% for item in cleis %}<option value="{{ item }}" {% if item in clei_filter %}selected{% endif %}>{{ item }}</option>{% endfor %}
     </select>
+
+    <label for="ciclo">Ciclo</label>
+    <select id="ciclo" name="ciclo" multiple size="3">
+      {% for item in cycles %}<option value="{{ item }}" {% if item|string in cycle_filter %}selected{% endif %}>Ciclo {{ item }}</option>{% endfor %}
+    </select>
+
+    <label for="semana">Semana</label>
+    <select id="semana" name="semana" multiple size="3">
+      {% for item in weeks %}<option value="{{ item }}" {% if item|string in week_filter %}selected{% endif %}>Semana {{ item }} de 3</option>{% endfor %}
+    </select>
+
+    <label for="desde">Desde</label>
+    <input id="desde" name="desde" type="date" value="{{ start_date }}">
+
+    <label for="hasta">Hasta</label>
+    <input id="hasta" name="hasta" type="date" value="{{ end_date }}">
 
     <label for="fecha">Fecha de clase</label>
     <select id="fecha" name="fecha">
