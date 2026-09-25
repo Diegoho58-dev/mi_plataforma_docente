@@ -57,6 +57,10 @@
       <tr>
         <th class="student-column">Estudiante</th>
         {% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}
+        <th class="average-column">Faltas</th>
+        <th class="average-column">Promedio<br>Español</th>
+        <th class="average-column">Promedio<br>Ciencias Sociales</th>
+        <th class="average-column">Promedio<br>Inglés</th>
       </tr>
     </thead>
     <tbody>
@@ -79,9 +83,13 @@
           {% endfor %}
         </td>
         {% endfor %}
+        <td class="average-column"><strong>{{ student.absences }}</strong></td>
+        <td class="average-column">{% if student.subject_averages.get('Español') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Español']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
+        <td class="average-column">{% if student.subject_averages.get('Ciencias Sociales') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Ciencias Sociales']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
+        <td class="average-column">{% if student.subject_averages.get('Inglés') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Inglés']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
       </tr>
       {% else %}
-      <tr><td colspan="{{ dates|length + 1 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>
+      <tr><td colspan="{{ dates|length + 5 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -89,5 +97,3 @@
 
 <p class="subtitle">Cada columna representa una fecha encontrada en los encabezados de las materias. Una recuperación no se elimina ni se cambia de semana: se conserva en su fecha real y se identifica visualmente.</p>
 {% endblock %}
-
-
