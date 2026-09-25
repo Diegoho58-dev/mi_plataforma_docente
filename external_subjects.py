@@ -122,6 +122,9 @@ def clei_key(value):
         "clei1": "CLEI 1", "clei2": "CLEI 2", "clei3a": "CLEI 3A",
         "clei3b": "CLEI 3B", "clei4": "CLEI 4", "clei5": "CLEI 5-6",
         "clei6": "CLEI 5-6", "clei5-6": "CLEI 5-6",
+        "1": "CLEI 1", "2": "CLEI 2", "3": "CLEI 3", "3a": "CLEI 3A",
+        "3b": "CLEI 3B", "4": "CLEI 4", "5": "CLEI 5-6", "6": "CLEI 5-6",
+        "5-6": "CLEI 5-6", "5/6": "CLEI 5-6",
         "multigrado": "MULTIGRADO", "alf": "ALF",
     }
     return aliases.get(key, clean(value).upper())
@@ -470,4 +473,3 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
         })
 
     return sorted(students.values(), key=lambda item: item["name"].lower()), sorted(dates.items())
-
