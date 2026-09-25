@@ -1,7 +1,7 @@
 import io
 from openpyxl import Workbook
 
-from external_subjects import _subject_date_map, build_external_matrix, clei_key, consolidate_records, parse_workbook, student_clei, summarize
+from external_subjects import _subject_date_map, build_external_matrix, clei_key, consolidate_records, parse_values, parse_workbook, sheet_block_label, student_clei, summarize
 
 header_dates = _subject_date_map(
     "ESPAÑOL ALF: Comprensión 09-07-2026 / 16-07-2026 "
@@ -23,6 +23,9 @@ assert clei_key("4") == "CLEI 4"
 assert clei_key("5-6") == "CLEI 5-6"
 assert student_clei("3", "GRUPO 2") == "CLEI 3A"
 assert student_clei("3", "GRUPO 3") == "CLEI 3B"
+assert student_clei("4", "GRUPO 6 MULTIGRADO") == "MULTIGRADO"
+assert sheet_block_label("1", "Multigrado / Mediana") == "Semana 1"
+assert sheet_block_label("1", "Alta y CLEI normal") == "Hoja: 1"
 
 duplicate = {
     "source": "Alta y CLEI normal", "sheet": "Semana 1", "subject": "Español",
@@ -39,6 +42,16 @@ matrix, dates = build_external_matrix([
     {"source": "Alta", "sheet": "3", "subject": "Español", "clei": "CLEI 3B", "group": "GRUPO 3", "student": "PEREZ", "identification": "123", "class_date": header_dates["CLEI 3A"][0], "attendance": "Si", "grade": "5", "block": "Hoja 3", "week_mismatch": False},
 ])
 assert len(matrix) == 1 and matrix[0]["absences"] == 1 and matrix[0]["subject_averages"]["Español"] == 4.5
+
+multigrade_rows = [
+    ["N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "CIENCIAS NATURALES", "MATEMÁTICAS / FÍSICA", "ESPAÑOL", "CIENCIAS SOCIALES", "INGLÉS"],
+    ["", "", "", "", "", "", "", "MULTIGRADO: 04/08/2026", "MULTIGRADO: 05/08/2026", "MULTIGRADO: 06/08/2026"],
+    ["Asis.", "", "", "", "", "", "", "Nota", "Nota", "Nota"],
+    [1, "MULTI PRUEBA", "123", "4", "GRUPO 6 MULTIGRADO", "", "", "Si", 8, "No", 0, "Si", 9],
+]
+multigrade_records = parse_values(multigrade_rows, "1", "Multigrado / Mediana")
+assert {item["subject"] for item in multigrade_records} == {"Español", "Ciencias Sociales", "Inglés"}
+assert {item["clei"] for item in multigrade_records} == {"MULTIGRADO"}
 
 workbook = Workbook()
 sheet = workbook.active
