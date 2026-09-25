@@ -991,14 +991,25 @@ def latest_planning_by_subject_group(buffer):
     }
     latest = {}
     for item in read_planning_rows(buffer):
-        normalized_group = normalize_planning_clei(item.get("group", ""))
+        group_text = " ".join(
+            clean_text(item.get(field, ""))
+            for field in ("group", "subject", "context", "source")
+        )
+        normalized_group = normalize_planning_clei(group_text)
         if not normalized_group:
-            normalized_group = normalize_planning_clei(item.get("source", ""))
+            continue
         display_group = menu_clei.get(normalized_group, item.get("group", ""))
         class_date = item.get("date")
         if not class_date or not display_group:
             continue
-        key = (item.get("subject", ""), display_group)
+        subject_key = normalize_header(item.get("subject", ""))
+        if "matematic" in subject_key or subject_key in {"mate", "mates", "fisica"}:
+            display_subject = "Matemáticas"
+        elif "biolog" in subject_key or "ciencias natural" in subject_key or subject_key in {"ciencias", "ciencia"}:
+            display_subject = "Biología"
+        else:
+            display_subject = item.get("subject", "")
+        key = (display_subject, display_group)
         previous = latest.get(key)
         if previous is None or class_date >= previous["date"]:
             combined = f"{item.get('theme', '')} {item.get('observations', '')}"
