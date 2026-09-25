@@ -41,7 +41,12 @@ matrix, dates = build_external_matrix([
     {"source": "Alta", "sheet": "1", "subject": "Español", "clei": "CLEI 3B", "group": "GRUPO 3", "student": "PEREZ", "identification": "123", "class_date": header_dates["CLEI 2"][0], "attendance": "No", "grade": "4,0", "block": "Hoja 1", "week_mismatch": False},
     {"source": "Alta", "sheet": "3", "subject": "Español", "clei": "CLEI 3B", "group": "GRUPO 3", "student": "PEREZ", "identification": "123", "class_date": header_dates["CLEI 3A"][0], "attendance": "Si", "grade": "5", "block": "Hoja 3", "week_mismatch": False},
 ])
-assert len(matrix) == 1 and matrix[0]["absences"] == 1 and matrix[0]["subject_averages"]["Español"] == 4.5
+assert (
+    len(matrix) == 1
+    and matrix[0]["absences_by_subject"]["Español"] == 1
+    and matrix[0]["total_absences"] == 1
+    and matrix[0]["subject_averages"]["Español"] == 4.5
+)
 
 multigrade_rows = [
     ["N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "CIENCIAS NATURALES", "MATEMÁTICAS / FÍSICA", "ESPAÑOL", "CIENCIAS SOCIALES", "INGLÉS"],
