@@ -13,7 +13,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from gemini_planning import GeminiPlanningError, generate_planning_proposal
-from external_subjects import build_external_matrix, mark_week_mismatches, parse_values, summarize
+from external_subjects import build_external_matrix, consolidate_records, mark_week_mismatches, parse_values, summarize
 
 app = Flask(__name__)
 
@@ -538,6 +538,7 @@ def download_external_subjects():
                 default_year=colombia_today().year,
             ))
         metadata.append({"source": source, "name": spreadsheet.get("properties", {}).get("title", "")})
+    records = consolidate_records(records)
     EXTERNAL_SUBJECTS_CACHE["records"] = records
     EXTERNAL_SUBJECTS_CACHE["metadata"] = metadata
     EXTERNAL_SUBJECTS_CACHE["loaded_at"] = time.monotonic()
