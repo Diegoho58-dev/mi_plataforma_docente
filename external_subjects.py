@@ -214,18 +214,17 @@ def _subject_date_map(text, default_year=2026):
         label = clei_key(match.group(1))
         dates = extract_dates(match.group(2), default_year)
         if dates:
-            # ALF queda fuera de la vista actual. Para cada CLEI se conserva
-            # la primera fecha explícita del encabezado; una segunda fecha en
-            # la misma etiqueta corresponde a otro bloque de ALF o a una
-            # recuperación que no se debe mezclar con la clase normal.
+            # ALF queda fuera de la vista actual. Para cada CLEI se conservan
+            # todas las fechas explícitas del encabezado: cada una será una
+            # columna independiente en la plataforma.
             if label != "ALF":
-                result[label] = [dates[0]]
+                result[label] = dates
     # Si el encabezado no asigna fecha a un CLEI concreto, conservamos todas
     # las fechas como referencia, sin inventar la semana académica.
     if not result:
         dates = extract_dates(normalized_text, default_year)
         if dates:
-            result["__default__"] = [dates[0]]
+            result["__default__"] = dates
     return result
 
 
@@ -296,8 +295,6 @@ def parse_workbook(buffer, source, default_year=2026):
                 grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
                 # Las columnas PROM./ASIST. y los totales están después de las
                 # materias y nunca se recorren como una materia adicional.
-                if not attendance and not grade:
-                    continue
                 for class_date in class_dates:
                     records.append({
                         "source": source,
@@ -354,8 +351,6 @@ def parse_values(values, sheet_title, source, default_year=2026):
                 continue
             attendance = clean(row[start_column] if start_column < len(row) else "")
             grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
-            if not attendance and not grade:
-                continue
             for class_date in class_dates:
                 records.append({
                     "source": source, "sheet": clean(sheet_title), "block": block,
@@ -475,3 +470,4 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
         })
 
     return sorted(students.values(), key=lambda item: item["name"].lower()), sorted(dates.items())
+
