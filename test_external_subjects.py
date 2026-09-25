@@ -1,7 +1,7 @@
 import io
 from openpyxl import Workbook
 
-from external_subjects import _subject_date_map, parse_workbook, summarize
+from external_subjects import _subject_date_map, consolidate_records, parse_workbook, summarize
 
 header_dates = _subject_date_map(
     "ESPAÑOL ALF: Comprensión 09-07-2026 / 16-07-2026 "
@@ -16,6 +16,16 @@ assert header_dates["CLEI 3B"][0].isoformat() == "2026-07-08"
 assert header_dates["CLEI 4"][0].isoformat() == "2026-07-21"
 assert header_dates["CLEI 5-6"][0].isoformat() == "2026-07-07"
 assert header_dates["MULTIGRADO"][0].isoformat() == "2026-07-09"
+
+duplicate = {
+    "source": "Alta y CLEI normal", "sheet": "Semana 1", "subject": "Español",
+    "clei": "CLEI 2", "group": "Grupo 1", "student": "PEREZ PRUEBA",
+    "identification": "123", "class_date": header_dates["CLEI 2"][0],
+    "attendance": "Si", "grade": "", "teacher": "Ana",
+}
+completed = dict(duplicate, grade="4.5")
+merged = consolidate_records([duplicate, completed])
+assert len(merged) == 1 and merged[0]["grade"] == "4.5"
 
 workbook = Workbook()
 sheet = workbook.active
@@ -44,5 +54,4 @@ assert summarize(records)["records"] >= 1
 assert {item["class_date"].isoformat() for item in records if item["subject"] == "Español"} == {"2026-08-01"}
 print("OK: parser externo excluye Matemáticas/Ciencias y conserva registros detallados.")
 print("OK: parser externo conserva todas las fechas del encabezado.")
-
 
