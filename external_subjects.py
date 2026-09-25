@@ -130,6 +130,18 @@ def clei_key(value):
     return aliases.get(key, clean(value).upper())
 
 
+def student_clei(value, group=""):
+    """Obtiene el CLEI operativo y separa CLEI 3 por grupo en Alta."""
+    key = clei_key(value)
+    group_key = normalize(group)
+    if key == "CLEI 3":
+        if re.search(r"\bgrupo\s*2\b", group_key):
+            return "CLEI 3A"
+        if re.search(r"\bgrupo\s*3\b", group_key):
+            return "CLEI 3B"
+    return key
+
+
 def context_for(source, group, clei):
     text = normalize(f"{source} {group} {clei}")
     if "multigrado" in text or "mediana" in text:
@@ -285,7 +297,7 @@ def parse_workbook(buffer, source, default_year=2026):
                 continue
             clei = clean(row[3] if len(row) > 3 else "")
             group = clean(row[4] if len(row) > 4 else "")
-            key = clei_key(clei)
+            key = student_clei(clei, group)
             for subject, start_column, dates_by_clei, teacher in subject_specs:
                 if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                     continue
@@ -305,8 +317,8 @@ def parse_workbook(buffer, source, default_year=2026):
                         "block": block,
                         "subject": subject,
                         "teacher": teacher,
-                        "context": context_for(source, group, clei),
-                        "clei": clei,
+                        "context": context_for(source, group, key),
+                        "clei": key,
                         "group": group,
                         "student": clean(row[1]),
                         "identification": clean(row[2]),
@@ -343,7 +355,7 @@ def parse_values(values, sheet_title, source, default_year=2026):
             continue
         clei = clean(row[3] if len(row) > 3 else "")
         group = clean(row[4] if len(row) > 4 else "")
-        key = clei_key(clei)
+        key = student_clei(clei, group)
         for subject, start_column, dates_by_clei, teacher in subject_specs:
             if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                 continue
@@ -358,7 +370,7 @@ def parse_values(values, sheet_title, source, default_year=2026):
                 records.append({
                     "source": source, "sheet": clean(sheet_title), "block": block,
                     "subject": subject, "teacher": teacher,
-                    "context": context_for(source, group, clei), "clei": clei, "group": group,
+                    "context": context_for(source, group, key), "clei": key, "group": group,
                     "student": clean(row[1]), "identification": clean(row[2]),
                     "attendance": attendance, "grade": grade, "observation": "",
                     "class_date": class_date,
@@ -473,3 +485,4 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
         })
 
     return sorted(students.values(), key=lambda item: item["name"].lower()), sorted(dates.items())
+
