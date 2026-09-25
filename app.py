@@ -1266,6 +1266,8 @@ def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter="
             "dates": {},
             "math_grades": [],
             "science_grades": [],
+            "math_absences": 0,
+            "science_absences": 0,
         })
         cell = student["dates"].setdefault(date_key, {
             "science_attendance": "",
@@ -1277,6 +1279,10 @@ def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter="
         cell["science_grade"] = item["science_grade"] or cell["science_grade"]
         cell["math_attendance"] = item["math_attendance"] or cell["math_attendance"]
         cell["math_grade"] = item["math_grade"] or cell["math_grade"]
+        if normalize_header(item["science_attendance"]) in {"no", "no asistio", "ausente", "inasistente"}:
+            student["science_absences"] += 1
+        if normalize_header(item["math_attendance"]) in {"no", "no asistio", "ausente", "inasistente"}:
+            student["math_absences"] += 1
         for field, target in (("science_grade", "science_grades"), ("math_grade", "math_grades")):
             try:
                 student[target].append(float(item[field].replace(",", ".")))
@@ -1288,6 +1294,7 @@ def build_student_matrix(records, clei_filter="", cycle_filter="", week_filter="
     for student in sorted(students.values(), key=lambda value: value["name"].lower()):
         student["math_average"] = round(sum(student["math_grades"]) / len(student["math_grades"]), 2) if student["math_grades"] else None
         student["science_average"] = round(sum(student["science_grades"]) / len(student["science_grades"]), 2) if student["science_grades"] else None
+        student["total_absences"] = student["math_absences"] + student["science_absences"]
         matrix.append(student)
     return matrix, dates
 
