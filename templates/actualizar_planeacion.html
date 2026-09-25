@@ -19,7 +19,7 @@
   <div class="panel-heading">
     <div>
       <h2><span class="heading-icon">▦</span>¿Qué materias vas a actualizar?</h2>
-      <p class="panel-help">Abre una materia para revisar sus cinco opciones de CLEI y seleccionar el tema desde la malla curricular.</p>
+      <p class="panel-help">Abre una materia para revisar sus opciones de CLEI, consultar el último registro y seleccionar el tema desde la malla curricular.</p>
     </div>
     <span class="status-pill {{ 'status-ready' if (is_friday or not only_friday) else 'status-muted' }}">{{ 'Disponible para probar' if not only_friday else ('Disponible hoy' if is_friday else 'Solo viernes') }}</span>
   </div>
@@ -49,6 +49,18 @@
               <span><strong>{{ clei }}</strong><small>Actualizar este CLEI</small></span>
             </label>
             <div class="curriculum-picker">
+              {% set last_item = last_planning.get((option.value, clei)) %}
+              {% if last_item %}
+              <div class="last-planning-summary">
+                <strong>Última clase registrada</strong>
+                <span><b>Tema:</b> {{ last_item.theme }}</span>
+                <span><b>Fecha:</b> {{ last_item.date_label }}</span>
+                <span><b>Estado:</b> {{ last_item.execution_status }}</span>
+                <small>{{ last_item.week }} · {{ last_item.status }}</small>
+              </div>
+              {% else %}
+              <div class="last-planning-summary is-empty">No hay una clase anterior registrada para este CLEI.</div>
+              {% endif %}
               <label for="tema-{{ subject_key }}-{{ clei_key }}">Tema de la malla</label>
               {% set topic_pages = pages_by_subject.get(option.value, {}).get(clei, {}) %}
               {% set selected_topic = selected_themes.get((option.value, clei), '') %}
