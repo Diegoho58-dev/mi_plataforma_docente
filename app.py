@@ -1668,6 +1668,24 @@ def attendance_value(value):
     return clean_text(value) or "Sin registro"
 
 
+def person_key(name, identification):
+    document = re.sub(r"\D", "", clean_text(identification))
+    if document:
+        return f"id:{document}"
+    return f"name:{normalize_header(name)}"
+
+
+def external_absence_totals(records):
+    totals = {}
+    for item in records or []:
+        attendance = normalize_header(item.get("attendance", ""))
+        if attendance not in {"no", "no asistio", "ausente", "inasistente", "n", "i"}:
+            continue
+        key = person_key(item.get("student", ""), item.get("identification", ""))
+        totals[key] = totals.get(key, 0) + 1
+    return totals
+
+
 @app.route("/asistencia")
 @login_required
 def asistencia():
@@ -1676,7 +1694,7 @@ def asistencia():
         "cycles": [], "weeks": [1, 2, 3],
         "clei_filter": [], "cycle_filter": [], "week_filter": [],
         "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
-        "attendance_stats": [], "total_never_attended": 0,
+        "attendance_stats": [], "total_never_attended": 0, "external_absence_error": None,
         "data_error": None,
     }
     if not DRIVE_ENABLED:
@@ -1685,6 +1703,14 @@ def asistencia():
     try:
         buffer, metadata = download_excel_from_drive()
         records = read_student_records(buffer)
+        try:
+            external_records, _ = download_external_subjects()
+            external_absences = external_absence_totals(external_records)
+            external_absence_error = None
+        except Exception as external_exc:
+            app.logger.warning("No se pudieron consolidar faltas de Otras materias: %s", external_exc)
+            external_absences = {}
+            external_absence_error = "No se pudieron cargar las faltas de Otras materias."
         clei_filter = request.args.getlist("clei")
         cycle_filter = request.args.getlist("ciclo")
         week_filter = request.args.getlist("semana")
@@ -1743,11 +1769,14 @@ def asistencia():
 
             key = (item["name"], item["identification"], item["group"])
             summary = attendance_by_student.setdefault(key, {
-                "name": item["name"], "group": item["group"], "clei": item["clei"], "context": item["context"],
+                "name": item["name"], "identification": item["identification"], "group": item["group"], "clei": item["clei"], "context": item["context"],
                 "math_sessions": 0, "math_present": 0, "math_absent": 0,
                 "science_sessions": 0, "science_present": 0, "science_absent": 0,
                 "observations": [], "absence_observations": [],
             })
+            summary["other_subject_absences"] = external_absences.get(
+                person_key(summary["name"], summary["identification"]), 0
+            )
             observation = clean_text(item.get("observation", ""))
             if observation and observation not in summary["observations"]:
                 summary["observations"].append(observation)
@@ -1788,6 +1817,7 @@ def asistencia():
             "total_rows": len(rows), "data_error": None,
             "attendance_stats": attendance_stats,
             "total_never_attended": sum(item["never_attended"] for item in attendance_stats),
+            "external_absence_error": external_absence_error,
             "drive_updated": metadata.get("modifiedTime", ""),
         })
         return render_template("asistencia.html", current_user=session.get("user"), **page_data)
