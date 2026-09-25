@@ -134,6 +134,8 @@ def student_clei(value, group=""):
     """Obtiene el CLEI operativo y separa CLEI 3 por grupo en Alta."""
     key = clei_key(value)
     group_key = normalize(group)
+    if "multigrado" in group_key:
+        return "MULTIGRADO"
     if key == "CLEI 3":
         if re.search(r"\bgrupo\s*2\b", group_key):
             return "CLEI 3A"
@@ -157,6 +159,8 @@ def sheet_block_label(title, source):
     if match:
         week_text = re.sub(r"\s+", " ", match.group(1))
         return f"Semana {week_text}"
+    if "multigrado" in normalize(source) and title_text.isdigit():
+        return f"Semana {int(title_text)}"
     return f"Hoja: {title_text or source}"
 
 
@@ -171,7 +175,7 @@ def _header_row(rows):
 def _subject_columns(rows, header_index):
     """Encuentra la columna inicial de cada materia en el encabezado visual."""
     found = []
-    for row_index in range(max(0, header_index - 12), header_index + 1):
+    for row_index in (header_index,):
         for column, value in enumerate(rows[row_index]):
             label = subject_name(value)
             if not label or is_own_subject(value):
@@ -245,7 +249,7 @@ def _subject_date_map(text, default_year=2026):
 
 def _header_text(rows, column, header_index):
     values = []
-    for row in rows[max(0, header_index - 12):header_index + 1]:
+    for row in rows[max(0, header_index - 12):header_index + 3]:
         if column < len(row) and clean(row[column]):
             values.append(clean(row[column]))
     return " ".join(values)
