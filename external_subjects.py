@@ -138,9 +138,10 @@ def context_for(source, group, clei):
 
 def sheet_block_label(title, source):
     title_text = clean(title)
-    match = re.search(r"semana\s*[-:]?\s*(\d+)", normalize(title_text))
+    match = re.search(r"semana\s*[-:]?\s*(\d+(?:\s*(?:y|a|-|–)\s*\d+)?)", normalize(title_text))
     if match:
-        return f"Semana {match.group(1)}"
+        week_text = re.sub(r"\s+", " ", match.group(1))
+        return f"Semana {week_text}"
     return f"Hoja: {title_text or source}"
 
 
@@ -213,13 +214,13 @@ def _subject_date_map(text, default_year=2026):
         label = clei_key(match.group(1))
         dates = extract_dates(match.group(2), default_year)
         if dates:
-            result[label] = dates[0]
+            result[label] = dates
     # Si el encabezado no asigna fecha a un CLEI concreto, conservamos todas
     # las fechas como referencia, sin inventar la semana académica.
     if not result:
         dates = extract_dates(normalized_text, default_year)
         if dates:
-            result["__default__"] = dates[0]
+            result["__default__"] = dates
     return result
 
 
@@ -279,31 +280,32 @@ def parse_workbook(buffer, source, default_year=2026):
             group = clean(row[4] if len(row) > 4 else "")
             key = clei_key(clei)
             for subject, start_column, dates_by_clei, teacher in subject_specs:
-                class_date = dates_by_clei.get(key) or dates_by_clei.get("__default__")
+                class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
                 attendance = clean(row[start_column] if start_column < len(row) else "")
                 grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
                 # Las columnas PROM./ASIST. y los totales están después de las
                 # materias y nunca se recorren como una materia adicional.
                 if not attendance and not grade:
                     continue
-                records.append({
-                    "source": source,
-                    "sheet": clean(worksheet.title),
-                    "block": block,
-                    "subject": subject,
-                    "teacher": teacher,
-                    "context": context_for(source, group, clei),
-                    "clei": clei,
-                    "group": group,
-                    "student": clean(row[1]),
-                    "identification": clean(row[2]),
-                    "attendance": attendance,
-                    "grade": grade,
-                    "observation": "",
-                    "class_date": class_date,
-                    "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
-                    "week_mismatch": False,
-                })
+                for class_date in class_dates:
+                    records.append({
+                        "source": source,
+                        "sheet": clean(worksheet.title),
+                        "block": block,
+                        "subject": subject,
+                        "teacher": teacher,
+                        "context": context_for(source, group, clei),
+                        "clei": clei,
+                        "group": group,
+                        "student": clean(row[1]),
+                        "identification": clean(row[2]),
+                        "attendance": attendance,
+                        "grade": grade,
+                        "observation": "",
+                        "class_date": class_date,
+                        "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
+                        "week_mismatch": False,
+                    })
     workbook.close()
     return records
 
@@ -332,21 +334,22 @@ def parse_values(values, sheet_title, source, default_year=2026):
         group = clean(row[4] if len(row) > 4 else "")
         key = clei_key(clei)
         for subject, start_column, dates_by_clei, teacher in subject_specs:
-            class_date = dates_by_clei.get(key) or dates_by_clei.get("__default__")
+            class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
             attendance = clean(row[start_column] if start_column < len(row) else "")
             grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
             if not attendance and not grade:
                 continue
-            records.append({
-                "source": source, "sheet": clean(sheet_title), "block": block,
-                "subject": subject, "teacher": teacher,
-                "context": context_for(source, group, clei), "clei": clei, "group": group,
-                "student": clean(row[1]), "identification": clean(row[2]),
-                "attendance": attendance, "grade": grade, "observation": "",
-                "class_date": class_date,
-                "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
-                "week_mismatch": False,
-            })
+            for class_date in class_dates:
+                records.append({
+                    "source": source, "sheet": clean(sheet_title), "block": block,
+                    "subject": subject, "teacher": teacher,
+                    "context": context_for(source, group, clei), "clei": clei, "group": group,
+                    "student": clean(row[1]), "identification": clean(row[2]),
+                    "attendance": attendance, "grade": grade, "observation": "",
+                    "class_date": class_date,
+                    "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
+                    "week_mismatch": False,
+                })
     return records
 
 
@@ -359,11 +362,15 @@ def mark_week_mismatches(records, cycle_for_date=None):
     if not cycle_for_date:
         return records
     for item in records:
-        match = re.search(r"semana\s*(\d+)", normalize(item["block"]))
+        match = re.search(r"semana\s*(\d+(?:\s*(?:y|a|-|–)\s*\d+)?)", normalize(item["block"]))
         if not match or not item.get("class_date"):
             continue
         cycle = cycle_for_date(item["class_date"])
-        if cycle and str(cycle.get("week")) != match.group(1):
+        expected_weeks = {
+            int(value)
+            for value in re.findall(r"\d+", match.group(1))
+        }
+        if cycle and cycle.get("week") not in expected_weeks:
             item["week_mismatch"] = True
     return records
 
@@ -427,6 +434,8 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
             "attendance": item["attendance"],
             "grade": item["grade"],
             "block": item["block"],
+            "source": item["source"],
+            "week_mismatch": item.get("week_mismatch", False),
         })
 
     return sorted(students.values(), key=lambda item: item["name"].lower()), sorted(dates.items())
