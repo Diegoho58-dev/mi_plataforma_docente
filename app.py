@@ -539,6 +539,15 @@ def download_external_subjects():
             ))
         metadata.append({"source": source, "name": spreadsheet.get("properties", {}).get("title", "")})
     records = consolidate_records(records)
+    # Las planillas conservan encabezados históricos y, ocasionalmente,
+    # fechas futuras de programación. Otras materias debe mostrar únicamente
+    # clases del ciclo académico actual que ya pudieron dictarse.
+    today = colombia_today()
+    records = [
+        item for item in records
+        if item.get("class_date")
+        and CYCLE_START <= item["class_date"] <= today
+    ]
     EXTERNAL_SUBJECTS_CACHE["records"] = records
     EXTERNAL_SUBJECTS_CACHE["metadata"] = metadata
     EXTERNAL_SUBJECTS_CACHE["loaded_at"] = time.monotonic()
@@ -2156,3 +2165,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
