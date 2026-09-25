@@ -214,13 +214,18 @@ def _subject_date_map(text, default_year=2026):
         label = clei_key(match.group(1))
         dates = extract_dates(match.group(2), default_year)
         if dates:
-            result[label] = dates
+            # ALF queda fuera de la vista actual. Para cada CLEI se conserva
+            # la primera fecha explícita del encabezado; una segunda fecha en
+            # la misma etiqueta corresponde a otro bloque de ALF o a una
+            # recuperación que no se debe mezclar con la clase normal.
+            if label != "ALF":
+                result[label] = [dates[0]]
     # Si el encabezado no asigna fecha a un CLEI concreto, conservamos todas
     # las fechas como referencia, sin inventar la semana académica.
     if not result:
         dates = extract_dates(normalized_text, default_year)
         if dates:
-            result["__default__"] = dates
+            result["__default__"] = [dates[0]]
     return result
 
 
@@ -280,6 +285,8 @@ def parse_workbook(buffer, source, default_year=2026):
             group = clean(row[4] if len(row) > 4 else "")
             key = clei_key(clei)
             for subject, start_column, dates_by_clei, teacher in subject_specs:
+                if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
+                    continue
                 class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
                 attendance = clean(row[start_column] if start_column < len(row) else "")
                 grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
@@ -334,6 +341,8 @@ def parse_values(values, sheet_title, source, default_year=2026):
         group = clean(row[4] if len(row) > 4 else "")
         key = clei_key(clei)
         for subject, start_column, dates_by_clei, teacher in subject_specs:
+            if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
+                continue
             class_dates = dates_by_clei.get(key) or dates_by_clei.get("__default__") or [None]
             attendance = clean(row[start_column] if start_column < len(row) else "")
             grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
