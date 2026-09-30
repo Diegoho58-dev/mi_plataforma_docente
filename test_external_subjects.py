@@ -48,6 +48,12 @@ assert (
     and matrix[0]["subject_averages"]["Español"] == 4.5
 )
 
+identity_variants, _ = build_external_matrix([
+    dict(duplicate, student="PEREZ, PRUEBA", identification="1234567.0", block="Hoja 1", week_mismatch=False),
+    dict(completed, student="PEREZ PRUEBA", identification="1.234.567", block="Hoja 1", week_mismatch=False),
+])
+assert len(identity_variants) == 1
+
 multigrade_rows = [
     ["N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "CIENCIAS NATURALES", "MATEMÁTICAS / FÍSICA", "ESPAÑOL", "CIENCIAS SOCIALES", "INGLÉS"],
     ["", "", "", "", "", "", "", "MULTIGRADO: 04/08/2026", "MULTIGRADO: 05/08/2026", "MULTIGRADO: 06/08/2026"],
