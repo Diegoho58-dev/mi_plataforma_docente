@@ -297,12 +297,16 @@ def _validate_self_study_guide(payload):
         "title": text("title", limit=300),
         "introduction": text("introduction", limit=2500),
         "objective": text("objective", limit=1200),
-        "explanation": text("explanation", limit=6000),
-        "activities": text_list("activities", minimum=3),
-        "reflection_questions": text_list("reflection_questions", minimum=3),
-        "evaluation": text_list("evaluation", minimum=3),
-        "answer_key": text_list("answer_key", minimum=3),
+        "explanation": text("explanation", limit=10000),
+        "key_concepts": text_list("key_concepts", minimum=4, limit=10),
+        "worked_examples": text_list("worked_examples", minimum=3, limit=8),
+        "activities": text_list("activities", minimum=6, limit=10),
+        "reflection_questions": text_list("reflection_questions", minimum=5, limit=8),
+        "evaluation": text_list("evaluation", minimum=5, limit=8),
+        "answer_key": text_list("answer_key", minimum=5, limit=10),
         "materials": text_list("materials", minimum=1, limit=8),
+        "common_mistakes": text_list("common_mistakes", minimum=3, limit=8),
+        "study_plan": text_list("study_plan", minimum=4, limit=8),
         "closing": text("closing", limit=1200),
     }
 
@@ -331,20 +335,25 @@ Contexto: {context or 'Educación flexible'}
 Semana planeada vigente: {week or 'No especificada'}
 Tema oficial de la planeación: {theme}
 
-Diseña una guía autodidacta completa para que un estudiante pueda trabajar sin acompañamiento permanente.
-La guía debe ser clara, práctica, inclusiva y apropiada para jóvenes y adultos. Debe partir únicamente del tema oficial recibido.
+Diseña una guía autodidacta extensa, equivalente a varias páginas de trabajo, para que un estudiante pueda aprender sin acompañamiento permanente.
+La guía debe ser clara, gradual, práctica, inclusiva y apropiada para jóvenes y adultos. Debe partir únicamente del tema oficial recibido.
 No inventes otro tema, materia o CLEI. No menciones que fue generada por una IA.
+Explica desde lo más básico hasta una aplicación práctica. Incluye ejemplos resueltos paso a paso y conecta el aprendizaje con situaciones cotidianas.
 
 Devuelve exclusivamente un objeto JSON válido con estos campos:
 - title: título concreto de la guía.
 - introduction: presentación y conexión del tema con situaciones cotidianas.
 - objective: objetivo de aprendizaje observable.
-- explanation: explicación amplia pero clara del tema, con ejemplos.
-- activities: lista de mínimo 4 actividades progresivas, incluyendo una actividad práctica relacionada con el contexto del estudiante.
-- reflection_questions: lista de mínimo 4 preguntas de comprensión y reflexión.
-- evaluation: lista de mínimo 4 criterios o preguntas de autoevaluación.
-- answer_key: lista de respuestas orientadoras para las actividades o preguntas.
+- explanation: explicación amplia y detallada del tema, con definiciones, procedimiento y ejemplos.
+- key_concepts: lista de mínimo 4 conceptos clave explicados en una frase.
+- worked_examples: lista de mínimo 3 ejemplos resueltos paso a paso.
+- activities: lista de mínimo 6 actividades progresivas, desde comprensión hasta aplicación práctica.
+- reflection_questions: lista de mínimo 5 preguntas de comprensión y reflexión.
+- evaluation: lista de mínimo 5 criterios o preguntas de autoevaluación.
+- answer_key: lista de mínimo 5 respuestas orientadoras para actividades o preguntas.
 - materials: lista de materiales sencillos y accesibles.
+- common_mistakes: lista de mínimo 3 errores frecuentes y cómo corregirlos.
+- study_plan: lista de mínimo 4 pasos para organizar el trabajo autónomo.
 - closing: recomendaciones finales para revisar y demostrar lo aprendido.
 
 Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
@@ -355,7 +364,7 @@ Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
         "generationConfig": {
             "temperature": 0.45,
             "candidateCount": 1,
-            "maxOutputTokens": 5000,
+            "maxOutputTokens": 8000,
             "responseMimeType": "application/json",
         },
     }
