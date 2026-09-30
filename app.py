@@ -12,7 +12,7 @@ from flask import Flask, make_response, redirect, render_template, request, send
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
-from gemini_planning import GeminiPlanningError, generate_planning_proposal, generate_self_study_guide
+from gemini_planning import GeminiPlanningError, generate_followup_analysis, generate_planning_proposal, generate_self_study_guide
 from external_subjects import build_external_matrix, clei_key, consolidate_records, mark_week_mismatches, parse_values, summarize
 
 app = Flask(__name__)
@@ -45,6 +45,7 @@ CURRICULUM_CACHE = {"modified_time": None, "topics": None, "pages": None, "loade
 CURRICULUM_CACHE_SECONDS = int(os.environ.get("CURRICULUM_CACHE_SECONDS", "300"))
 EXTERNAL_SUBJECTS_CACHE = {"records": None, "metadata": [], "loaded_at": 0}
 EXTERNAL_SUBJECTS_CACHE_SECONDS = int(os.environ.get("EXTERNAL_SUBJECTS_CACHE_SECONDS", "300"))
+FOLLOWUP_ANALYSIS_CACHE = {"key": "", "analysis": None, "loaded_at": 0}
 
 
 def login_required(view_function):
@@ -2378,6 +2379,122 @@ def otras_materias():
         return render_template("otras_materias.html", current_user=session.get("user"), **page_data)
 
 
+def _new_followup_subject_stats():
+    return {"sessions": 0, "present": 0, "absent": 0, "rate": 0, "grades": []}
+
+
+def _followup_add(stats, subject, attendance="", grade=""):
+    item = stats.setdefault(subject, _new_followup_subject_stats())
+    if attendance or grade:
+        item["sessions"] += 1
+    status = attendance_value(attendance)
+    if status == "Asistió":
+        item["present"] += 1
+    elif status == "No asistió":
+        item["absent"] += 1
+    try:
+        item["grades"].append(float(str(grade).replace(",", ".")))
+    except (TypeError, ValueError):
+        pass
+
+
+def _followup_finalize_stats(stats):
+    result = {}
+    for subject, item in stats.items():
+        clean_item = dict(item)
+        sessions = clean_item["sessions"]
+        clean_item["rate"] = round(clean_item["present"] * 100 / sessions, 1) if sessions else 0
+        clean_item["average"] = round(sum(clean_item["grades"]) / len(clean_item["grades"]), 2) if clean_item["grades"] else None
+        clean_item.pop("grades", None)
+        result[subject] = clean_item
+    return result
+
+
+def build_followup_summary(base_records, classes, external_records):
+    """Consolida datos reales para el seguimiento integral, sin inventar ausencias."""
+    subjects = {"Matemáticas": _new_followup_subject_stats(), "Ciencias Naturales": _new_followup_subject_stats()}
+    by_clei = {}
+    by_group = {}
+    students = {}
+    observations = []
+
+    def add_person(name, identification, clei, group, subject, attendance, grade, source):
+        clei_label = clei_key(clei) or clean_text(clei) or "SIN CLEI"
+        group_label = clean_text(group) or clei_label
+        person_id = person_key(name, identification)
+        key = (person_id, clei_label, group_label)
+        student = students.setdefault(key, {"name": clean_text(name) or "Sin nombre", "clei": clei_label, "group": group_label, "sessions": 0, "present": 0, "absent": 0, "sources": set()})
+        subject_stats = subjects.setdefault(subject, _new_followup_subject_stats())
+        _followup_add(subjects, subject, attendance, grade)
+        clei_stats = by_clei.setdefault(clei_label, {})
+        _followup_add(clei_stats, subject, attendance, grade)
+        group_stats = by_group.setdefault((clei_label, group_label), {})
+        _followup_add(group_stats, subject, attendance, grade)
+        if attendance or grade:
+            student["sessions"] += 1
+            status = attendance_value(attendance)
+            if status == "Asistió":
+                student["present"] += 1
+            elif status == "No asistió":
+                student["absent"] += 1
+        student["sources"].add(source)
+
+    for record in base_records or []:
+        if not record.get("date"):
+            continue
+        if record.get("math_attendance") or record.get("math_grade"):
+            add_person(record.get("name"), record.get("identification"), record.get("clei"), record.get("group"), "Matemáticas", record.get("math_attendance"), record.get("math_grade"), "Base")
+        if record.get("science_attendance") or record.get("science_grade"):
+            add_person(record.get("name"), record.get("identification"), record.get("clei"), record.get("group"), "Ciencias Naturales", record.get("science_attendance"), record.get("science_grade"), "Base")
+        observation = clean_text(record.get("observation", ""))
+        if observation and not any(item["text"] == observation and item["name"] == record.get("name") for item in observations):
+            observations.append({"name": clean_text(record.get("name")), "clei": clei_key(record.get("clei")) or clean_text(record.get("clei")), "group": clean_text(record.get("group")), "text": observation})
+
+    for record in external_records or []:
+        subject = clean_text(record.get("subject", "")) or "Otra materia"
+        add_person(record.get("student"), record.get("identification"), record.get("clei"), record.get("group"), subject, record.get("attendance"), record.get("grade"), record.get("source", "Otras materias"))
+
+    finalized_clei = {clei: _followup_finalize_stats(stats) for clei, stats in by_clei.items()}
+    finalized_groups = {}
+    for (clei, group), stats in by_group.items():
+        finalized_groups.setdefault(clei, {})[group] = _followup_finalize_stats(stats)
+    risk_students = []
+    for student in students.values():
+        sessions = student["sessions"]
+        student["rate"] = round(student["present"] * 100 / sessions, 1) if sessions else 0
+        student["sources"] = sorted(student["sources"])
+        if sessions and (student["rate"] < 70 or student["absent"] > student["present"]):
+            risk_students.append(student)
+    risk_students.sort(key=lambda value: (-value["absent"], value["rate"], value["name"].lower()))
+    padrino = {clei: {"groups": finalized_groups.get(clei, {}), "students": [item for item in risk_students if item["clei"] == clei]} for clei in ("CLEI 3B", "CLEI 5-6")}
+    subject_summary = _followup_finalize_stats(subjects)
+    clei_order = ["CLEI 1", "CLEI 2", "CLEI 3A", "CLEI 3B", "CLEI 4", "CLEI 5-6", "MULTIGRADO"]
+    chart_data = {
+        "clei": [{"label": clei, "math": finalized_clei.get(clei, {}).get("Matemáticas", {}).get("rate", 0), "science": finalized_clei.get(clei, {}).get("Ciencias Naturales", {}).get("rate", 0)} for clei in clei_order],
+        "subjects": [{"label": subject, "sessions": values["sessions"], "absent": values["absent"]} for subject, values in subject_summary.items()],
+        "padrino": [{"label": clei, "present": sum(item.get("present", 0) for item in finalized_clei.get(clei, {}).values()), "absent": sum(item.get("absent", 0) for item in finalized_clei.get(clei, {}).values())} for clei in ("CLEI 3B", "CLEI 5-6")],
+    }
+    return {
+        "source_counts": {"base_records": len(base_records or []), "external_records": len(external_records or []), "planning_classes": len(classes or []), "students": len(students), "observations": observations[:20]},
+        "subjects": subject_summary,
+        "by_clei": finalized_clei,
+        "padrino": padrino,
+        "risk_students": risk_students[:20],
+        "chart_data": chart_data,
+    }
+
+
+def fallback_followup_analysis(summary):
+    source_counts = summary["source_counts"]
+    risks = summary["risk_students"]
+    return {
+        "teacher_overview": {"title": "Lectura general del rol docente", "summary": f"Se consolidaron {source_counts['base_records']} registros propios y {source_counts['external_records']} registros de otras materias para {source_counts['students']} estudiantes.", "findings": [f"Se analizaron {source_counts['planning_classes']} clases de Planeación.", f"Hay {len(risks)} estudiantes con señales de seguimiento prioritario.", "La lectura combina asistencia, calificaciones disponibles, CLEI, grupos y fuentes externas."], "possible_situations": ["Los registros incompletos podrían estar ocultando necesidades de apoyo.", "Las diferencias entre grupos podrían estar relacionadas con asistencia irregular o con ritmos de aprendizaje distintos."], "actions": ["Validar con cada grupo los registros sin asistencia explícita.", "Revisar semanalmente los estudiantes con mayor número de inasistencias.", "Triangular asistencia, desempeño y observación antes de tomar decisiones." ]},
+        "subjects_analysis": {"title": "Matemáticas, Ciencias Naturales y otras materias", "summary": "La comparación integra las dos áreas propias con las materias externas disponibles.", "findings": [f"Se encontraron {len(summary['subjects'])} materias en el consolidado.", "Las tasas deben interpretarse junto con el número de sesiones y la cobertura de cada fuente.", "Las coincidencias de ausencias entre materias pueden orientar una conversación de seguimiento."], "possible_situations": ["Una baja participación transversal podría estar relacionada con barreras de asistencia o continuidad.", "Una diferencia entre materias podría reflejar cantidad de sesiones, dificultad percibida o calidad desigual del registro."], "actions": ["Comparar estudiantes con ausencias en dos o más materias.", "Diseñar apoyos integrados entre Matemáticas y Ciencias Naturales.", "Solicitar observaciones concretas a docentes de otras materias." ]},
+        "padrino_analysis": {"title": "Seguimiento de grupos apadrinados: CLEI 3B y CLEI 5-6", "summary": "Esta lectura prioriza los dos grupos apadrinados y sus señales de asistencia.", "findings": [f"Hay {len(summary['padrino']['CLEI 3B']['students'])} estudiantes priorizados en CLEI 3B.", f"Hay {len(summary['padrino']['CLEI 5-6']['students'])} estudiantes priorizados en CLEI 5-6.", "La información externa se incorpora cuando coincide la identidad normalizada del estudiante."], "possible_situations": ["Las inasistencias reiteradas podrían estar relacionadas con dificultades de permanencia o responsabilidades externas.", "La falta de observaciones detalladas limita la explicación causal y requiere verificación directa."], "actions": ["Realizar seguimiento individual a los casos de mayor prioridad.", "Registrar una observación verificable después de cada contacto.", "Comparar la evolución de CLEI 3B y CLEI 5-6 durante las próximas semanas." ]},
+        "limitations": ["La asistencia sin marca explícita no se interpreta automáticamente como ausencia.", "Las situaciones posibles son hipótesis pedagógicas y deben verificarse con el estudiante, el grupo y los docentes."],
+    }
+
+
 @app.route("/seguimiento")
 @login_required
 def seguimiento():
@@ -2390,8 +2507,9 @@ def seguimiento():
             "chronic_absence_count": 0, "missing_attendance": 0, "total_sessions": 0,
             "total_present": 0, "total_absent": 0, "math_sessions": 0, "science_sessions": 0,
         },
-        "chart_data": json.dumps({"dates": [], "math": [], "science": [], "contexts": [], "risks": []}),
-        "interpretations": [], "risk_students": [], "probable_exits": [], "data_error": None,
+        "chart_data": json.dumps({"dates": [], "math": [], "science": [], "contexts": [], "risks": [], "followup": {"clei": [], "subjects": [], "padrino": []}}),
+        "interpretations": [], "risk_students": [], "probable_exits": [], "followup_summary": None,
+        "followup_analysis": None, "followup_analysis_error": None, "external_analysis_error": None, "data_error": None,
     }
     if not DRIVE_ENABLED:
         page_data["data_error"] = "La conexión con Google Drive está pausada."
@@ -2400,6 +2518,32 @@ def seguimiento():
         buffer, metadata = download_excel_from_drive()
         classes = read_planning_rows(buffer)
         records = read_student_records(buffer)
+        try:
+            external_records, _ = download_external_subjects()
+        except Exception as external_exc:
+            app.logger.warning("No se pudieron cargar otras materias para Seguimiento: %s", external_exc)
+            external_records = []
+            page_data["external_analysis_error"] = "El análisis se generó sin la fuente de otras materias porque no estuvo disponible."
+        followup_summary = build_followup_summary(records, classes, external_records)
+        followup_cache_key = json.dumps(followup_summary, ensure_ascii=False, sort_keys=True)
+        if (
+            FOLLOWUP_ANALYSIS_CACHE["key"] == followup_cache_key
+            and FOLLOWUP_ANALYSIS_CACHE["analysis"]
+            and time.monotonic() - FOLLOWUP_ANALYSIS_CACHE["loaded_at"] < EXTERNAL_SUBJECTS_CACHE_SECONDS
+        ):
+            followup_analysis = FOLLOWUP_ANALYSIS_CACHE["analysis"]
+        else:
+            try:
+                followup_analysis = generate_followup_analysis(followup_summary)
+                FOLLOWUP_ANALYSIS_CACHE.update({"key": followup_cache_key, "analysis": followup_analysis, "loaded_at": time.monotonic()})
+            except GeminiPlanningError as analysis_exc:
+                app.logger.warning("No se pudo generar el análisis IA de Seguimiento: %s", analysis_exc)
+                followup_analysis = fallback_followup_analysis(followup_summary)
+                page_data["followup_analysis_error"] = str(analysis_exc)
+        page_data.update({
+            "followup_summary": followup_summary,
+            "followup_analysis": followup_analysis,
+        })
         valid_records = [item for item in records if item["date"]]
         probable_exits = detect_probable_exits(valid_records, classes)
         unique_students = {(item["name"], item["identification"], item["group"]) for item in valid_records if item["name"]}
@@ -2514,6 +2658,7 @@ def seguimiento():
             "science": [{"present": item[1]["science_present"], "absent": item[1]["science_absent"]} for item in date_items],
             "contexts": [{"label": key, "value": value} for key, value in sorted(context_counts.items())],
             "risks": [{"label": item["name"], "value": item["absent"]} for item in risk_students[:8]],
+            "followup": followup_summary["chart_data"],
         }
         page_data.update({
             "stats": {"classes": len(classes), "students": len(unique_students), "groups": len({item["group"] for item in classes}), "attendance_rate": overall_rate, "math_rate": math_rate, "science_rate": science_rate, "math_average": round(sum(grades["math"]) / len(grades["math"]), 2) if grades["math"] else None, "science_average": round(sum(grades["science"]) / len(grades["science"]), 2) if grades["science"] else None, "risk_count": len([item for item in student_stats.values() if item["sessions"] and (item["rate"] < 70 or item["absent"] > item["present"])]), "low_performance_count": low_performance_students, "students_with_grades": len(student_grade_averages), "records": len(valid_records), "attendance_coverage": round(records_with_attendance * 100 / len(valid_records), 1) if valid_records else 0, "recent_rate": recent_rate, "trend": trend, "chronic_absence_count": chronic_absence_count, "missing_attendance": missing_attendance, "total_sessions": total_sessions, "total_present": total_present, "total_absent": total_sessions - total_present, "math_sessions": attendance["math"]["sessions"], "science_sessions": attendance["science"]["sessions"]},
