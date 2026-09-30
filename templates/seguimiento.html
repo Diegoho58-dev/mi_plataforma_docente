@@ -278,6 +278,66 @@
 
 </div>
 
+{% if followup_summary and followup_analysis %}
+<section class="followup-hero panel" aria-labelledby="followup-title">
+  <div class="panel-heading">
+    <div>
+      <p class="chart-kicker">SEGUIMIENTO INTEGRAL CON IA</p>
+      <h2 id="followup-title">Lectura profesional de la situación académica</h2>
+      <p class="panel-help">El análisis cruza la fuente base, las otras materias, Planeación, asistencia, calificaciones, CLEI, grupos y observaciones disponibles.</p>
+    </div>
+    <div class="followup-source-badge"><strong>{{ followup_summary.source_counts.students }}</strong><span>estudiantes consolidados</span></div>
+  </div>
+  {% if external_analysis_error %}<div class="data-alert alert-info" role="status">{{ external_analysis_error }}</div>{% endif %}
+  {% if followup_analysis_error %}<div class="data-alert alert-info" role="status">El análisis automático no estuvo disponible; se muestra una lectura estadística de respaldo. Detalle: {{ followup_analysis_error }}</div>{% endif %}
+  <div class="followup-source-strip">
+    <span><strong>{{ followup_summary.source_counts.base_records }}</strong> registros propios</span>
+    <span><strong>{{ followup_summary.source_counts.external_records }}</strong> registros de otras materias</span>
+    <span><strong>{{ followup_summary.source_counts.planning_classes }}</strong> clases planeadas</span>
+    <span><strong>{{ followup_summary.source_counts.observations|length }}</strong> observaciones disponibles</span>
+  </div>
+</section>
+
+<section class="followup-sections" aria-label="Tres apartados de análisis pedagógico">
+  {% for key in ["teacher_overview", "subjects_analysis", "padrino_analysis"] %}
+    {% set section = followup_analysis[key] %}
+    <article class="panel followup-section-card {% if key == 'padrino_analysis' %}padrino-section{% endif %}">
+      <div class="panel-heading"><div><p class="chart-kicker">{% if key == 'teacher_overview' %}APARTADO 1 · ROL DOCENTE{% elif key == 'subjects_analysis' %}APARTADO 2 · ÁREAS Y OTRAS MATERIAS{% else %}APARTADO 3 · GRUPOS APADRINADOS{% endif %}</p><h2>{{ section.title }}</h2></div></div>
+      <p class="followup-summary">{{ section.summary }}</p>
+      <div class="followup-columns">
+        <div><h3>Hallazgos observados</h3><ul>{% for finding in section.findings %}<li>{{ finding }}</li>{% endfor %}</ul></div>
+        <div><h3>Situaciones posibles</h3><ul class="hypothesis-list">{% for item in section.possible_situations %}<li>{{ item }}</li>{% endfor %}</ul></div>
+        <div><h3>Acciones recomendadas</h3><ol>{% for item in section.actions %}<li>{{ item }}</li>{% endfor %}</ol></div>
+      </div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="followup-charts charts-grid" aria-label="Gráficas del seguimiento integral">
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">TODOS LOS CLEI</p><h2>Asistencia comparada por CLEI</h2></div></div><div class="chart-box"><canvas id="followupCleiChart" aria-label="Asistencia comparada por CLEI"></canvas><p class="chart-empty" data-empty-for="followupCleiChart" hidden>No hay registros por CLEI para graficar.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">INTEGRACIÓN CURRICULAR</p><h2>Volumen y ausencias por materia</h2></div></div><div class="chart-box"><canvas id="followupSubjectsChart" aria-label="Volumen y ausencias por materia"></canvas><p class="chart-empty" data-empty-for="followupSubjectsChart" hidden>No hay registros de materias para graficar.</p></div></section>
+  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">CLEI 3B · CLEI 5-6</p><h2>Balance de grupos apadrinados</h2></div></div><div class="chart-box"><canvas id="followupPadrinoChart" aria-label="Balance de los grupos apadrinados"></canvas><p class="chart-empty" data-empty-for="followupPadrinoChart" hidden>No hay registros de grupos apadrinados.</p></div></section>
+</section>
+
+<section class="panel followup-data-panel" aria-labelledby="followup-subject-data">
+  <div class="panel-heading"><div><p class="chart-kicker">EVIDENCIA DESAGREGADA</p><h2 id="followup-subject-data">Comparativo de materias</h2></div><span class="interpretation-note">La tasa solo se interpreta junto con el número de sesiones.</span></div>
+  <div class="table-scroll"><table><thead><tr><th>Materia</th><th>Sesiones</th><th>Asistencias</th><th>Inasistencias</th><th>Asistencia</th><th>Promedio</th></tr></thead><tbody>{% for subject, values in followup_summary.subjects.items() %}<tr><td><strong>{{ subject }}</strong></td><td>{{ values.sessions }}</td><td>{{ values.present }}</td><td class="risk-high">{{ values.absent }}</td><td>{{ values.rate }}%</td><td>{{ '%.2f'|format(values.average) if values.average is not none else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No hay datos desagregados disponibles.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+
+<section class="panel followup-data-panel padrino-detail-panel" aria-labelledby="padrino-detail-title">
+  <div class="panel-heading"><div><p class="chart-kicker">SEGUIMIENTO NOMINAL</p><h2 id="padrino-detail-title">Evidencia de los grupos apadrinados</h2></div><span class="interpretation-note">Prioridad: CLEI 3B y CLEI 5-6</span></div>
+  <div class="padrino-detail-grid">
+    {% for clei, data in followup_summary.padrino.items() %}
+      <article class="padrino-detail-card"><h3>{{ clei }}</h3><p class="panel-help">Grupos encontrados: {{ data.groups|length }} · Casos priorizados: {{ data.students|length }}</p>
+        {% if data.students %}<ul class="padrino-student-list">{% for student in data.students[:8] %}<li><strong>{{ student.name }}</strong><span>{{ student.group }} · {{ student.absent }} faltas · {{ student.rate }}% asistencia</span></li>{% endfor %}</ul>{% else %}<p class="panel-help">No hay estudiantes priorizados con los criterios actuales.</p>{% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel followup-data-panel"><div class="panel-heading"><div><p class="chart-kicker">CRITERIO DE USO</p><h2>Lectura responsable</h2></div></div><ul class="followup-limitations">{% for item in followup_analysis.limitations %}<li>{{ item }}</li>{% endfor %}</ul></section>
+{% endif %}
+
 <section class="panel interpretation">
   <div class="panel-heading">
     <div>
