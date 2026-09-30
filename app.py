@@ -1659,30 +1659,68 @@ def estudiantes():
 
 
 
+ABSENT_ATTENDANCE_MARKERS = {
+    "no", "no asistio", "ausente", "inasistente", "n", "i",
+    "f", "falta", "faltas", "no estuvo", "no presente",
+}
+
+
+def is_absent_attendance(value):
+    text = normalize_header(value)
+    return (
+        text in ABSENT_ATTENDANCE_MARKERS
+        or text.startswith("no asistio")
+        or text.startswith("ausent")
+        or text.startswith("inasist")
+    )
+
+
 def attendance_value(value):
-    text = clean_text(value).lower()
-    if text in {"si", "sí", "s", "asistio", "asistió", "presente", "p"}:
+    text = normalize_header(value)
+    if text in {"si", "s", "asistio", "presente", "p", "a", "asistio a clase"}:
         return "Asistió"
-    if text in {"no", "n", "ausente", "inasistente", "i"}:
+    if is_absent_attendance(text):
         return "No asistió"
     return clean_text(value) or "Sin registro"
 
 
-def person_key(name, identification):
-    document = re.sub(r"\D", "", clean_text(identification))
+def normalized_document(value):
+    """Normaliza documentos escritos como texto, con puntos o como número decimal."""
+    text = clean_text(value)
+    # Google Sheets puede entregar una identificación numérica como 1234567.0.
+    text = re.sub(r"[.,]0+$", "", text)
+    return re.sub(r"\D", "", text)
+
+
+def normalized_person_name(value):
+    text = normalize_header(value)
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+def person_keys(name, identification):
+    """Devuelve claves por documento y por nombre para tolerar diferencias de formato."""
+    keys = []
+    document = normalized_document(identification)
     if document:
-        return f"id:{document}"
-    return f"name:{normalize_header(name)}"
+        keys.append(f"id:{document}")
+    normalized_name = normalized_person_name(name)
+    if normalized_name:
+        keys.append(f"name:{normalized_name}")
+    return list(dict.fromkeys(keys))
+
+
+def person_key(name, identification):
+    keys = person_keys(name, identification)
+    return keys[0] if keys else "name:"
 
 
 def external_absence_totals(records):
     totals = {}
     for item in records or []:
-        attendance = normalize_header(item.get("attendance", ""))
-        if attendance not in {"no", "no asistio", "ausente", "inasistente", "n", "i"}:
+        if not is_absent_attendance(item.get("attendance", "")):
             continue
-        key = person_key(item.get("student", ""), item.get("identification", ""))
-        totals[key] = totals.get(key, 0) + 1
+        for key in person_keys(item.get("student", ""), item.get("identification", "")):
+            totals[key] = totals.get(key, 0) + 1
     return totals
 
 
@@ -1790,6 +1828,7 @@ def asistencia():
 
         rows = []
         attendance_by_student = {}
+        matched_external_people = set()
         for item in records:
             cycle = cycle_for_date(item["date"])
             if not matches_attendance_scope(item, clei_filter, context_filter, cycle_filter, week_filter, start_date, end_date):
@@ -1814,9 +1853,23 @@ def asistencia():
                 "science_sessions": 0, "science_present": 0, "science_absent": 0,
                 "observations": [], "absence_observations": [],
             })
-            summary["other_subject_absences"] = external_absences.get(
-                person_key(summary["name"], summary["identification"]), 0
+            summary["other_subject_absences"] = max(
+                (
+                    external_absences.get(key, 0)
+                    for key in person_keys(
+                        summary["name"],
+                        summary["identification"],
+                    )
+                ),
+                default=0,
             )
+            if summary["other_subject_absences"]:
+                matched_external_people.add(
+                    person_key(
+                        summary["name"],
+                        summary["identification"],
+                    )
+                )
             observation = clean_text(item.get("observation", ""))
             if observation and observation not in summary["observations"]:
                 summary["observations"].append(observation)
@@ -1835,6 +1888,22 @@ def asistencia():
                 elif status == "No asistió":
                     summary[f"{prefix}_absent"] += 1
 
+        app.logger.info(
+            "Asistencia: filtros clei=%s contexto=%s ciclos=%s semanas=%s "
+            "fechas=%s..%s; base=%d externos=%d externos_filtrados=%d "
+            "claves_falta=%d estudiantes_unidos=%d",
+            clei_filter,
+            context_filter,
+            cycle_filter,
+            week_filter,
+            start_date_text,
+            end_date_text,
+            len(records),
+            len(external_records),
+            len(filtered_external_records),
+            len(external_absences),
+            len(matched_external_people),
+        )
         rows.sort(key=lambda item: (item["date"] or date.min, item["name"].lower()), reverse=True)
         attendance_stats = []
         for summary in attendance_by_student.values():
