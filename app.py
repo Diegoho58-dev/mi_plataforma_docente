@@ -1663,6 +1663,7 @@ ABSENT_ATTENDANCE_MARKERS = {
     "no", "no asistio", "ausente", "inasistente", "n", "i",
     "f", "falta", "faltas", "no estuvo", "no presente",
 }
+ATTENDANCE_EXTERNAL_SUBJECTS = ("Español", "Ciencias Sociales", "Inglés")
 
 
 def is_absent_attendance(value):
@@ -1724,6 +1725,61 @@ def external_absence_totals(records):
     return totals
 
 
+def external_subject_stats(records):
+    """Resume las materias externas por estudiante y conserva alias de identidad."""
+    stats_by_canonical = {}
+    aliases = {}
+    for item in records or []:
+        item_keys = person_keys(
+            item.get("student", ""),
+            item.get("identification", ""),
+        )
+        if not item_keys:
+            continue
+        canonical = next(
+            (aliases[key] for key in item_keys if key in aliases),
+            item_keys[0],
+        )
+        for key in item_keys:
+            aliases[key] = canonical
+        student = stats_by_canonical.setdefault(canonical, {
+            "subjects": {
+                subject: {
+                    "sessions": 0,
+                    "present": 0,
+                    "absent": 0,
+                    "rate": 0,
+                }
+                for subject in ATTENDANCE_EXTERNAL_SUBJECTS
+            }
+        })
+        subject = item.get("subject", "")
+        if subject not in student["subjects"]:
+            continue
+        attendance = clean_text(item.get("attendance", ""))
+        grade = clean_text(item.get("grade", ""))
+        if not (attendance or grade):
+            continue
+        subject_stats = student["subjects"][subject]
+        subject_stats["sessions"] += 1
+        if is_absent_attendance(attendance):
+            subject_stats["absent"] += 1
+        elif normalize_header(attendance) in {"si", "s", "asistio", "presente", "p", "a"}:
+            subject_stats["present"] += 1
+
+    result = {}
+    for alias, canonical in aliases.items():
+        student = stats_by_canonical[canonical]
+        for subject_stats in student["subjects"].values():
+            sessions = subject_stats["sessions"]
+            subject_stats["rate"] = round(
+                subject_stats["present"] * 100 / sessions,
+                1,
+            ) if sessions else 0
+        result[alias] = student
+    return result
+
+
 def attendance_scope_context(item):
     if "class_date" in item:
         return "Multigrado" if item.get("source") == "Multigrado / Mediana" else "Alta"
@@ -1765,6 +1821,7 @@ def matches_attendance_scope(item, clei_filters=None, context_filter="", cycle_f
 def asistencia():
     page_data = {
         "rows": [], "cleis": ["2", "3A", "3B", "4", "5-6", "Multigrado"], "contexts": CONTEXT_OPTIONS.copy(), "context_filter": "",
+        "other_subject_names": list(ATTENDANCE_EXTERNAL_SUBJECTS),
         "cycles": [], "weeks": [1, 2, 3],
         "clei_filter": [], "cycle_filter": [], "week_filter": [],
         "start_date": "", "end_date": "", "total_present": 0, "total_absent": 0, "total_rows": 0,
@@ -1825,6 +1882,7 @@ def asistencia():
             )
         ]
         external_absences = external_absence_totals(filtered_external_records)
+        external_stats = external_subject_stats(filtered_external_records)
 
         rows = []
         attendance_by_student = {}
@@ -1851,17 +1909,28 @@ def asistencia():
                 "name": item["name"], "identification": item["identification"], "group": item["group"], "clei": item["clei"], "context": item["context"],
                 "math_sessions": 0, "math_present": 0, "math_absent": 0,
                 "science_sessions": 0, "science_present": 0, "science_absent": 0,
+                "other_subject_stats": {
+                    subject: {"sessions": 0, "present": 0, "absent": 0, "rate": 0}
+                    for subject in ATTENDANCE_EXTERNAL_SUBJECTS
+                },
                 "observations": [], "absence_observations": [],
             })
-            summary["other_subject_absences"] = max(
+            matching_external = next(
                 (
-                    external_absences.get(key, 0)
-                    for key in person_keys(
+                    external_stats[person_key_value]
+                    for person_key_value in person_keys(
                         summary["name"],
                         summary["identification"],
                     )
+                    if person_key_value in external_stats
                 ),
-                default=0,
+                None,
+            )
+            if matching_external:
+                summary["other_subject_stats"] = matching_external["subjects"]
+            summary["other_subject_absences"] = sum(
+                subject_stats["absent"]
+                for subject_stats in summary["other_subject_stats"].values()
             )
             if summary["other_subject_absences"]:
                 matched_external_people.add(
@@ -1907,9 +1976,33 @@ def asistencia():
         rows.sort(key=lambda item: (item["date"] or date.min, item["name"].lower()), reverse=True)
         attendance_stats = []
         for summary in attendance_by_student.values():
-            summary["total_sessions"] = summary["math_sessions"] + summary["science_sessions"]
-            summary["total_present"] = summary["math_present"] + summary["science_present"]
-            summary["total_absent"] = summary["math_absent"] + summary["science_absent"]
+            summary["other_sessions"] = sum(
+                subject_stats["sessions"]
+                for subject_stats in summary["other_subject_stats"].values()
+            )
+            summary["other_present"] = sum(
+                subject_stats["present"]
+                for subject_stats in summary["other_subject_stats"].values()
+            )
+            summary["other_absent"] = sum(
+                subject_stats["absent"]
+                for subject_stats in summary["other_subject_stats"].values()
+            )
+            summary["total_sessions"] = (
+                summary["math_sessions"]
+                + summary["science_sessions"]
+                + summary["other_sessions"]
+            )
+            summary["total_present"] = (
+                summary["math_present"]
+                + summary["science_present"]
+                + summary["other_present"]
+            )
+            summary["total_absent"] = (
+                summary["math_absent"]
+                + summary["science_absent"]
+                + summary["other_absent"]
+            )
             summary["math_rate"] = round(summary["math_present"] * 100 / summary["math_sessions"], 1) if summary["math_sessions"] else 0
             summary["science_rate"] = round(summary["science_present"] * 100 / summary["science_sessions"], 1) if summary["science_sessions"] else 0
             summary["total_rate"] = round(summary["total_present"] * 100 / summary["total_sessions"], 1) if summary["total_sessions"] else 0
