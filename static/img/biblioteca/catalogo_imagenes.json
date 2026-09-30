@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "descripcion": "Biblioteca local de ilustraciones educativas del Panel Docente. Gemini seleccionará recursos; las imágenes se sirven desde static.",
+  "imagenes": [
+    {
+      "id": "biologia_celula_animal_001",
+      "archivo": "biblioteca/biologia/celula_animal_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["célula", "célula animal", "membrana", "núcleo", "organelos", "mitocondria", "retículo endoplasmático", "aparato de Golgi"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "concepto",
+      "descripcion": "Corte educativo de una célula animal con núcleo y organelos reconocibles.",
+      "uso": "Introducir la estructura celular y relacionar organelos con funciones."
+    },
+    {
+      "id": "biologia_termorregulacion_001",
+      "archivo": "biblioteca/biologia/termorregulacion_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["termorregulación", "homeostasis", "temperatura corporal", "sudor", "glándulas sudoríparas", "calor corporal"],
+      "clei": ["CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "proceso",
+      "descripcion": "Cuerpo humano frente al calor con piel, sudoración y regulación térmica.",
+      "uso": "Explicar cómo el cuerpo responde al calor y conserva su temperatura."
+    },
+    {
+      "id": "biologia_osmorregulacion_001",
+      "archivo": "biblioteca/biologia/osmorregulacion_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["osmorregulación", "homeostasis", "agua dulce", "agua salada", "sales minerales", "branquias", "ósmosis"],
+      "clei": ["CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "comparacion",
+      "descripcion": "Comparación de peces en agua dulce y salada con movimiento de agua y sales.",
+      "uso": "Comparar estrategias de regulación de agua y sales en peces."
+    },
+    {
+      "id": "biologia_sistema_urinario_001",
+      "archivo": "biblioteca/biologia/sistema_urinario_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["sistema urinario", "riñón", "riñones", "uréter", "vejiga", "orina", "nefrona", "filtración renal"],
+      "clei": ["CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "estructura",
+      "descripcion": "Sistema urinario humano con riñones, uréteres, vejiga y detalle interno del riñón.",
+      "uso": "Reconocer órganos y comprender la filtración y eliminación de desechos."
+    },
+    {
+      "id": "biologia_roble_001",
+      "archivo": "biblioteca/biologia/roble_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["roble", "árbol", "planta", "hoja", "semilla", "bellota", "raíces"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4"],
+      "tipo": "estructura",
+      "descripcion": "Árbol de roble con tronco, ramas, hojas, bellotas y raíces.",
+      "uso": "Relacionar partes de una planta con sus funciones y ciclo de vida."
+    },
+    {
+      "id": "ciencias_ecosistema_001",
+      "archivo": "biblioteca/ciencias_naturales/ecosistema_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["ecosistema", "hábitat", "biodiversidad", "seres vivos", "factores abióticos", "cadena alimentaria"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4"],
+      "tipo": "contexto",
+      "descripcion": "Ecosistema con agua, plantas, animales, suelo y relaciones naturales.",
+      "uso": "Identificar componentes bióticos y abióticos y sus relaciones."
+    },
+    {
+      "id": "ciencias_ciclo_agua_001",
+      "archivo": "biblioteca/ciencias_naturales/ciclo_agua_001.png",
+      "materias": ["Ciencias Naturales", "Biología"],
+      "temas": ["ciclo del agua", "evaporación", "condensación", "precipitación", "escorrentía", "agua"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4"],
+      "tipo": "proceso",
+      "descripcion": "Ciclo natural del agua con sol, nubes, lluvia y retorno del agua.",
+      "uso": "Ordenar y explicar las etapas del ciclo del agua."
+    },
+    {
+      "id": "matematicas_fracciones_001",
+      "archivo": "biblioteca/matematicas/fracciones_001.png",
+      "materias": ["Matemáticas"],
+      "temas": ["fracción", "fracciones", "numerador", "denominador", "parte de un todo", "equivalencia"],
+      "clei": ["CLEI 2", "CLEI 3"],
+      "tipo": "concepto",
+      "descripcion": "Pizza y barra divididas en partes iguales para representar fracciones.",
+      "uso": "Relacionar numerador, denominador y parte de un todo."
+    },
+    {
+      "id": "matematicas_ecuaciones_001",
+      "archivo": "biblioteca/matematicas/ecuaciones_001.png",
+      "materias": ["Matemáticas"],
+      "temas": ["ecuación", "ecuaciones", "igualdad", "álgebra", "incógnita", "variable"],
+      "clei": ["CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "proceso",
+      "descripcion": "Balanza equilibrada para representar una igualdad y despejar una incógnita.",
+      "uso": "Comprender la igualdad y las operaciones equivalentes."
+    },
+    {
+      "id": "matematicas_triangulo_001",
+      "archivo": "biblioteca/matematicas/triangulo_001.png",
+      "materias": ["Matemáticas"],
+      "temas": ["triángulo", "geometría", "base", "altura", "perímetro", "área"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4"],
+      "tipo": "estructura",
+      "descripcion": "Triángulo con base, altura, regla y transportador en contexto escolar.",
+      "uso": "Reconocer elementos y preparar el cálculo de área o perímetro."
+    },
+    {
+      "id": "contexto_dinero_001",
+      "archivo": "biblioteca/contexto_cotidiano/dinero_001.png",
+      "materias": ["Matemáticas", "Ciencias Naturales"],
+      "temas": ["dinero", "billete", "moneda", "compra", "venta", "presupuesto", "ahorro", "cambio"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "aplicacion",
+      "descripcion": "Billetes, monedas, recibo, calculadora y situación de compra.",
+      "uso": "Conectar operaciones, porcentajes y decisiones con la vida cotidiana."
+    },
+    {
+      "id": "contexto_mesa_exploracion_001",
+      "archivo": "biblioteca/contexto_cotidiano/mesa_exploracion_001.png",
+      "materias": ["Ciencias Naturales", "Matemáticas"],
+      "temas": ["observación", "experimento", "medición", "investigación", "actividad práctica"],
+      "clei": ["CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
+      "tipo": "actividad",
+      "descripcion": "Mesa de exploración con cuaderno, lupa, regla y materiales escolares.",
+      "uso": "Acompañar actividades prácticas cuando aún no exista una imagen específica."
+    }
+  ]
+}
