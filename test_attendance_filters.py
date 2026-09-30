@@ -34,4 +34,23 @@ filtered = [
 totals = external_absence_totals(filtered)
 assert totals[person_key("PEREZ PRUEBA", "1234567")] == 1
 
+for identification, attendance in (
+    ("1234567.0", "No asistió"),
+    ("CC 1234567", "No asistió a la clase"),
+    ("1234567", "F"),
+):
+    totals = external_absence_totals([{
+        "student": "PEREZ PRUEBA",
+        "identification": identification,
+        "attendance": attendance,
+    }])
+    assert totals[person_key("PEREZ PRUEBA", "1234567")] == 1
+
+totals = external_absence_totals([{
+    "student": "PEREZ PRUEBA",
+    "identification": "",
+    "attendance": "No",
+}])
+assert totals[person_key("PEREZ PRUEBA", "")] == 1
+
 print("OK: el filtro CLEI del archivo base conserva la falta de la planilla externa.")
