@@ -13,7 +13,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from gemini_planning import GeminiPlanningError, generate_planning_proposal
-from external_subjects import build_external_matrix, consolidate_records, mark_week_mismatches, parse_values, summarize
+from external_subjects import build_external_matrix, clei_key, consolidate_records, mark_week_mismatches, parse_values, summarize
 
 app = Flask(__name__)
 
@@ -1694,12 +1694,20 @@ def attendance_scope_context(item):
 
 def matches_attendance_scope(item, clei_filters=None, context_filter="", cycle_filters=None,
                              week_filters=None, start_date=None, end_date=None):
-    clei_filters = set(clei_filters or [])
+    # El archivo base expone CLEI como "2", "3A" y "Multigrado", mientras
+    # las planillas externas entregan "CLEI 2", "CLEI 3A" y "MULTIGRADO".
+    # Comparar el texto crudo hacía que Asistencia descartara todas las faltas
+    # externas cuando se seleccionaba un CLEI.
+    clei_filters = {
+        clei_key(value)
+        for value in (clei_filters or [])
+        if clean_text(value)
+    }
     cycle_filters = {str(value) for value in (cycle_filters or [])}
     week_filters = {str(value) for value in (week_filters or [])}
     item_date = item.get("class_date") if "class_date" in item else item.get("date")
     cycle = cycle_for_date(item_date)
-    if clei_filters and item.get("clei") not in clei_filters:
+    if clei_filters and clei_key(item.get("clei", "")) not in clei_filters:
         return False
     if context_filter and attendance_scope_context(item) != context_filter:
         return False
@@ -1765,23 +1773,19 @@ def asistencia():
         cycle_filter = [value for value in cycle_filter if value in {str(item) for item in cycles}]
         week_filter = [value for value in week_filter if value in {str(item) for item in weeks}]
 
-        filtered_external_records = []
-        for external_item in external_records:
-            external_context = "Multigrado" if external_item.get("source") == "Multigrado / Mediana" else "Alta"
-            external_cycle = cycle_for_date(external_item.get("class_date"))
-            if clei_filter and external_item.get("clei") not in clei_filter:
-                continue
-            if context_filter and external_context != context_filter:
-                continue
-            if cycle_filter and (not external_cycle or str(external_cycle["cycle"]) not in cycle_filter):
-                continue
-            if week_filter and (not external_cycle or str(external_cycle["week"]) not in week_filter):
-                continue
-            if start_date and (not external_item.get("class_date") or external_item["class_date"] < start_date):
-                continue
-            if end_date and (not external_item.get("class_date") or external_item["class_date"] > end_date):
-                continue
-            filtered_external_records.append(external_item)
+        filtered_external_records = [
+            external_item
+            for external_item in external_records
+            if matches_attendance_scope(
+                external_item,
+                clei_filter,
+                context_filter,
+                cycle_filter,
+                week_filter,
+                start_date,
+                end_date,
+            )
+        ]
         external_absences = external_absence_totals(filtered_external_records)
 
         rows = []
