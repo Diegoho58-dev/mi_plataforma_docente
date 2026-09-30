@@ -1,437 +1,58 @@
 {% extends "base.html" %}
-{% block title %}Seguimiento | Panel Docente{% endblock %}
-
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-{% endblock %}
-
+{% block title %}Seguimiento integral | Panel Docente{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>{% endblock %}
 {% block content %}
-<section class="welcome-section analytics-header">
+<section class="followup-cover">
   <div>
-    <p class="eyebrow">ANÁLISIS PEDAGÓGICO</p>
-    <h1>Seguimiento estadístico</h1>
-    <p class="subtitle">
-      Una lectura integral de asistencia, desempeño y evolución de los grupos a partir del Excel.
-    </p>
+    <p class="eyebrow">INFORME INTEGRAL DE SEGUIMIENTO</p>
+    <h1>Lectura pedagógica para la toma de decisiones</h1>
+    <p class="subtitle">Un solo informe que cruza la fuente base, las planillas de otras docentes, Planeación, asistencia, calificaciones y observaciones.</p>
+    {% if drive_updated %}<span class="data-freshness">Actualizado: {{ drive_updated }}</span>{% endif %}
   </div>
-
-  {% if drive_updated %}
-    <span class="data-freshness">
-      Última actualización: {{ drive_updated }}
-    </span>
-  {% endif %}
+  {% if followup_summary %}<div class="followup-cover-mark"><span>IA</span><small>Análisis consolidado</small></div>{% endif %}
 </section>
 
-{% if data_error %}
-<div class="data-alert" role="alert">
-  <strong>{{ data_error }}</strong>
-  <small>
-    Verifica la conexión y los permisos del archivo en Google Drive.
-    Cuando no haya datos, el panel conservará sus indicadores en cero.
-  </small>
-</div>
-{% endif %}
-
-<section class="analytics-grid" aria-label="Indicadores para decidir">
-  <article class="analytics-card teal-accent">
-    <strong>{{ stats.attendance_rate }}%</strong>
-    <span>Asistencia efectiva</span>
-    <small>
-      Meta sugerida: ≥ 85% · Matemáticas {{ stats.math_rate }}% · Ciencias {{ stats.science_rate }}%
-    </small>
-  </article>
-
-  <article class="analytics-card green-accent">
-    <strong>{{ stats.risk_count }}</strong>
-    <span>Estudiantes priorizados</span>
-    <small>Alerta por asistencia · {{ stats.groups }} grupos</small>
-  </article>
-
-  <article class="analytics-card gold-accent">
-    <strong>{{ stats.low_performance_count }}</strong>
-    <span>Desempeño por debajo de 3.0</span>
-    <small>Estudiantes con calificaciones bajas</small>
-  </article>
-
-  <article class="analytics-card red-accent">
-    <strong>{{ stats.attendance_coverage }}%</strong>
-    <span>Cobertura de asistencia</span>
-    <small>Registros con asistencia explícita</small>
-  </article>
-</section>
-
-<section class="analytics-mini-grid" aria-label="Estadísticas detalladas de asistencia">
-  <article class="analytics-mini-card">
-    <span>Registros analizados</span>
-    <strong>{{ stats.records }}</strong>
-    <small>
-      {{ stats.students }} estudiantes · {{ stats.groups }} grupos
-    </small>
-  </article>
-
-  <article class="analytics-mini-card">
-    <span>Últimas 4 fechas</span>
-    <strong>{{ stats.recent_rate }}%</strong>
-    <small>{% if stats.trend > 0 %}Mejora de{% elif stats.trend < 0 %}Disminución de{% else %}Sin cambio{% endif %} {{ stats.trend|abs }} puntos frente a las 4 anteriores</small>
-  </article>
-
-  <article class="analytics-mini-card">
-    <span>Ausentismo persistente</span>
-    <strong>{{ stats.chronic_absence_count }}</strong>
-    <small>Estudiantes con 2 o más inasistencias</small>
-  </article>
-
-  <article class="analytics-mini-card">
-    <span>Promedios académicos</span>
-    <strong>
-      {{ '%.2f'|format(stats.math_average ) if stats.math_average is not none else '—' }}
-      /
-      {{ '%.2f'|format(stats.science_average) if stats.science_average is not none else '—' }}
-    </strong>
-    <small>Matemáticas / Ciencias Naturales</small>
-  </article>
-</section>
-
-<section class="decision-grid" aria-label="Lectura para la acción">
-  <article class="decision-card">
-    <p class="chart-kicker">¿QUÉ SIGNIFICA?</p>
-    <h2>Lectura rápida</h2>
-    <p>La asistencia efectiva muestra la participación registrada. La cobertura indica cuánto se puede confiar en el dato: los registros sin asistencia explícita no deben interpretarse como ausencias.</p>
-  </article>
-  <article class="decision-card action-card">
-    <p class="chart-kicker">PRÓXIMA ACCIÓN</p>
-    <h2>Prioriza esta semana</h2>
-    <ul>
-      <li>Contactar a los {{ stats.risk_count }} estudiantes con alerta de asistencia.</li>
-      <li>Revisar apoyos para los {{ stats.low_performance_count }} estudiantes con promedio inferior a 3.0.</li>
-      <li>Completar los {{ stats.missing_attendance }} registros sin asistencia explícita.</li>
-    </ul>
-  </article>
-</section>
-
-<section class="panel probable-exits-panel" aria-label="Posibles salidas del programa">
-  <div class="panel-heading">
-    <div>
-      <p class="chart-kicker">VERIFICACIÓN DE MATRÍCULA</p>
-      <h2>Posibles salidas del programa</h2>
-    </div>
-    <span class="interpretation-note">Se detectan cuando el estudiante deja de aparecer en al menos dos clases posteriores. Verifica antes de retirar el seguimiento.</span>
-  </div>
-  {% if probable_exits %}
-  <div class="probable-exits-grid">
-    {% for item in probable_exits %}
-    <article class="probable-exit-card">
-      <strong>{{ item.name }}</strong>
-      <span>{{ item.clei if item.clei == 'Multigrado' else 'CLEI ' ~ item.clei }} · {{ item.group }}</span>
-      <small>Último registro: {{ item.last_date_label }}</small>
-      <small>{{ item.future_class_count }} clases posteriores sin registro · última clase: {{ item.latest_class_label }}</small>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="panel-help">No hay estudiantes con dos o más clases posteriores sin registro.</p>
-  {% endif %}
-</section>
-
-<section class="attendance-evidence" aria-label="Evidencia de asistencia">
-  <div class="evidence-title">
-    <p class="chart-kicker">EVIDENCIA PRINCIPAL</p>
-    <h2>Balance de asistencia</h2>
-    <span>Comparación directa de sesiones presentes y ausentes</span>
-  </div>
-
-  <div class="evidence-stat present">
-    <strong>{{ stats.total_present }}</strong>
-    <span>Asistencias</span>
-  </div>
-
-  <div class="evidence-stat absent">
-    <strong>{{ stats.total_absent }}</strong>
-    <span>Inasistencias</span>
-  </div>
-
-  <div class="evidence-stat rate">
-    <strong>{{ stats.attendance_rate }}%</strong>
-    <span>Asistencia global</span>
-  </div>
-</section>
-
-<div class="charts-grid" aria-label="Gráficas de seguimiento">
-
-  <section class="panel chart-panel chart-wide">
-    <div class="chart-heading">
-      <div>
-        <p class="chart-kicker">EVOLUCIÓN</p>
-        <h2>Asistencia por fecha</h2>
-      </div>
-      <span class="chart-help">
-        Asistencias e inasistencias registradas
-      </span>
-    </div>
-
-    <div class="chart-box">
-      <canvas
-        id="attendanceChart"
-        aria-label="Evolución de asistencia por fecha">
-      </canvas>
-
-      <p
-        class="chart-empty"
-        data-empty-for="attendanceChart"
-        hidden>
-        No hay fechas con registros de asistencia para graficar.
-      </p>
-    </div>
-  </section>
-
-  <section class="panel chart-panel">
-    <div class="chart-heading">
-      <div>
-        <p class="chart-kicker">BALANCE GLOBAL</p>
-        <h2>Asistencia frente a inasistencia</h2>
-      </div>
-    </div>
-
-    <div class="chart-box">
-      <canvas
-        id="attendanceBalanceChart"
-        aria-label="Balance global de asistencias e inasistencias">
-      </canvas>
-
-      <p
-        class="chart-empty"
-        data-empty-for="attendanceBalanceChart"
-        hidden>
-        No hay sesiones con asistencia para mostrar.
-      </p>
-    </div>
-  </section>
-
-  <section class="panel chart-panel">
-    <div class="chart-heading">
-      <div>
-        <p class="chart-kicker">COMPARACIÓN</p>
-        <h2>Asistencia por materia</h2>
-      </div>
-    </div>
-
-    <div class="chart-box">
-      <canvas
-        id="subjectChart"
-        aria-label="Comparación de asistencias e inasistencias por materia">
-      </canvas>
-
-      <p
-        class="chart-empty"
-        data-empty-for="subjectChart"
-        hidden>
-        No hay registros de asistencia por materia.
-      </p>
-    </div>
-  </section>
-
-  <section class="panel chart-panel">
-    <div class="chart-heading">
-      <div>
-        <p class="chart-kicker">DISTRIBUCIÓN</p>
-        <h2>Clases por contexto</h2>
-      </div>
-    </div>
-
-    <div class="chart-box">
-      <canvas
-        id="contextChart"
-        aria-label="Distribución de clases por contexto">
-      </canvas>
-
-      <p
-        class="chart-empty"
-        data-empty-for="contextChart"
-        hidden>
-        No hay clases de planeación para distribuir.
-      </p>
-    </div>
-  </section>
-
-  <section class="panel chart-panel">
-    <div class="chart-heading">
-      <div>
-        <p class="chart-kicker">ALERTA</p>
-        <h2>Inasistencias prioritarias</h2>
-      </div>
-    </div>
-
-    <div class="chart-box">
-      <canvas
-        id="riskChart"
-        aria-label="Inasistencias de estudiantes priorizados">
-      </canvas>
-
-      <p
-        class="chart-empty"
-        data-empty-for="riskChart"
-        hidden>
-        No hay estudiantes priorizados con inasistencias.
-      </p>
-    </div>
-  </section>
-
-</div>
+{% if data_error %}<div class="data-alert" role="alert"><strong>{{ data_error }}</strong><small>Verifica la conexión y permisos de Google Drive.</small></div>{% endif %}
 
 {% if followup_summary and followup_analysis %}
-<section class="followup-hero panel" aria-labelledby="followup-title">
-  <div class="panel-heading">
-    <div>
-      <p class="chart-kicker">SEGUIMIENTO INTEGRAL CON IA</p>
-      <h2 id="followup-title">Lectura profesional de la situación académica</h2>
-      <p class="panel-help">El análisis cruza la fuente base, las otras materias, Planeación, asistencia, calificaciones, CLEI, grupos y observaciones disponibles.</p>
-    </div>
-    <div class="followup-source-badge"><strong>{{ followup_summary.source_counts.students }}</strong><span>estudiantes consolidados</span></div>
-  </div>
-  {% if external_analysis_error %}<div class="data-alert alert-info" role="status">{{ external_analysis_error }}</div>{% endif %}
-  {% if followup_analysis_error %}<div class="data-alert alert-info" role="status">El análisis automático no estuvo disponible; se muestra una lectura estadística de respaldo. Detalle: {{ followup_analysis_error }}</div>{% endif %}
-  <div class="followup-source-strip">
-    <span><strong>{{ followup_summary.source_counts.base_records }}</strong> registros propios</span>
-    <span><strong>{{ followup_summary.source_counts.external_records }}</strong> registros de otras materias</span>
-    <span><strong>{{ followup_summary.source_counts.planning_classes }}</strong> clases planeadas</span>
-    <span><strong>{{ followup_summary.source_counts.observations|length }}</strong> observaciones disponibles</span>
-  </div>
+<section class="followup-source-strip followup-top-strip" aria-label="Fuentes consolidadas">
+  <div><strong>{{ followup_summary.source_counts.students }}</strong><span>estudiantes</span></div>
+  <div><strong>{{ followup_summary.source_counts.base_records }}</strong><span>registros propios</span></div>
+  <div><strong>{{ followup_summary.source_counts.external_records }}</strong><span>registros de otras materias</span></div>
+  <div><strong>{{ followup_summary.source_counts.planning_classes }}</strong><span>clases planeadas</span></div>
+  <div><strong>{{ followup_summary.source_counts.observations|length }}</strong><span>observaciones</span></div>
+</section>
+{% if external_analysis_error %}<div class="data-alert alert-info" role="status">{{ external_analysis_error }}</div>{% endif %}
+{% if followup_analysis_error %}<div class="data-alert alert-info" role="status">La IA no estuvo disponible; se presenta un informe estadístico de respaldo. {{ followup_analysis_error }}</div>{% endif %}
+
+<section class="followup-main-section section-one" aria-labelledby="section-one-title">
+  <div class="followup-section-heading"><span class="section-number">01</span><div><p class="eyebrow">ROL DOCENTE · TODOS LOS CLEI</p><h2 id="section-one-title">Matemáticas y Ciencias Naturales en toda la institución</h2><p>La lectura general de la situación académica desde la perspectiva del profesor de las dos áreas.</p></div></div>
+  {% set analysis = followup_analysis.teacher_overview %}
+  <div class="followup-report-lead"><h3>{{ analysis.title }}</h3><p>{{ analysis.summary }}</p></div>
+  <div class="followup-report-grid"><article><h3>Lo que muestran los datos</h3><ul>{% for item in analysis.findings %}<li>{{ item }}</li>{% endfor %}</ul></article><article class="possible-box"><h3>Qué podría estar ocurriendo</h3><ul>{% for item in analysis.possible_situations %}<li>{{ item }}</li>{% endfor %}</ul></article><article><h3>Decisiones sugeridas</h3><ol>{% for item in analysis.actions %}<li>{{ item }}</li>{% endfor %}</ol></article></div>
+  <div class="followup-chart-card"><div><p class="chart-kicker">LECTURA COMPARATIVA</p><h3>Asistencia de Matemáticas y Ciencias Naturales por CLEI</h3></div><div class="followup-chart-box"><canvas id="followupCleiChart" aria-label="Asistencia por CLEI"></canvas><p class="chart-empty" data-empty-for="followupCleiChart" hidden>No hay datos suficientes para graficar.</p></div></div>
 </section>
 
-<section class="followup-sections" aria-label="Tres apartados de análisis pedagógico">
-  {% for key in ["teacher_overview", "subjects_analysis", "padrino_analysis"] %}
-    {% set section = followup_analysis[key] %}
-    <article class="panel followup-section-card {% if key == 'padrino_analysis' %}padrino-section{% endif %}">
-      <div class="panel-heading"><div><p class="chart-kicker">{% if key == 'teacher_overview' %}APARTADO 1 · ROL DOCENTE{% elif key == 'subjects_analysis' %}APARTADO 2 · ÁREAS Y OTRAS MATERIAS{% else %}APARTADO 3 · GRUPOS APADRINADOS{% endif %}</p><h2>{{ section.title }}</h2></div></div>
-      <p class="followup-summary">{{ section.summary }}</p>
-      <div class="followup-columns">
-        <div><h3>Hallazgos observados</h3><ul>{% for finding in section.findings %}<li>{{ finding }}</li>{% endfor %}</ul></div>
-        <div><h3>Situaciones posibles</h3><ul class="hypothesis-list">{% for item in section.possible_situations %}<li>{{ item }}</li>{% endfor %}</ul></div>
-        <div><h3>Acciones recomendadas</h3><ol>{% for item in section.actions %}<li>{{ item }}</li>{% endfor %}</ol></div>
-      </div>
-    </article>
-  {% endfor %}
+<section class="followup-main-section section-two" aria-labelledby="section-two-title">
+  <div class="followup-section-heading"><span class="section-number">02</span><div><p class="eyebrow">CONSOLIDADO CURRICULAR</p><h2 id="section-two-title">Todas las materias en una misma lectura</h2><p>Comparación de las áreas propias con las materias registradas por las demás docentes.</p></div></div>
+  {% set analysis = followup_analysis.subjects_analysis %}
+  <div class="followup-report-lead"><h3>{{ analysis.title }}</h3><p>{{ analysis.summary }}</p></div>
+  <div class="followup-report-grid"><article><h3>Patrones encontrados</h3><ul>{% for item in analysis.findings %}<li>{{ item }}</li>{% endfor %}</ul></article><article class="possible-box"><h3>Lecturas para verificar</h3><ul>{% for item in analysis.possible_situations %}<li>{{ item }}</li>{% endfor %}</ul></article><article><h3>Acciones de articulación</h3><ol>{% for item in analysis.actions %}<li>{{ item }}</li>{% endfor %}</ol></article></div>
+  <div class="followup-two-column"><div class="followup-chart-card"><p class="chart-kicker">COBERTURA Y AUSENTISMO</p><h3>Sesiones e inasistencias por materia</h3><div class="followup-chart-box"><canvas id="followupSubjectsChart" aria-label="Sesiones e inasistencias por materia"></canvas><p class="chart-empty" data-empty-for="followupSubjectsChart" hidden>No hay datos suficientes para graficar.</p></div></div><div class="followup-table-card"><p class="chart-kicker">EVIDENCIA CONSOLIDADA</p><h3>Resumen por materia</h3><div class="followup-table-scroll"><table><thead><tr><th>Materia</th><th>Sesiones</th><th>Faltas</th><th>Asistencia</th><th>Promedio</th></tr></thead><tbody>{% for subject, values in followup_summary.subjects.items() %}<tr><td><strong>{{ subject }}</strong></td><td>{{ values.sessions }}</td><td class="risk-high">{{ values.absent }}</td><td>{{ values.rate }}%</td><td>{{ '%.2f'|format(values.average) if values.average is not none else '—' }}</td></tr>{% else %}<tr><td colspan="5">No hay materias consolidadas.</td></tr>{% endfor %}</tbody></table></div></div></div>
 </section>
 
-<section class="followup-charts charts-grid" aria-label="Gráficas del seguimiento integral">
-  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">TODOS LOS CLEI</p><h2>Asistencia comparada por CLEI</h2></div></div><div class="chart-box"><canvas id="followupCleiChart" aria-label="Asistencia comparada por CLEI"></canvas><p class="chart-empty" data-empty-for="followupCleiChart" hidden>No hay registros por CLEI para graficar.</p></div></section>
-  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">INTEGRACIÓN CURRICULAR</p><h2>Volumen y ausencias por materia</h2></div></div><div class="chart-box"><canvas id="followupSubjectsChart" aria-label="Volumen y ausencias por materia"></canvas><p class="chart-empty" data-empty-for="followupSubjectsChart" hidden>No hay registros de materias para graficar.</p></div></section>
-  <section class="panel chart-panel"><div class="chart-heading"><div><p class="chart-kicker">CLEI 3B · CLEI 5-6</p><h2>Balance de grupos apadrinados</h2></div></div><div class="chart-box"><canvas id="followupPadrinoChart" aria-label="Balance de los grupos apadrinados"></canvas><p class="chart-empty" data-empty-for="followupPadrinoChart" hidden>No hay registros de grupos apadrinados.</p></div></section>
+<section class="followup-main-section section-three" aria-labelledby="section-three-title">
+  <div class="followup-section-heading"><span class="section-number">03</span><div><p class="eyebrow">GRUPOS APADRINADOS</p><h2 id="section-three-title">Informe especial de CLEI 3B y CLEI 5-6</h2><p>Seguimiento prioritario de asistencia, desempeño, observaciones y señales de permanencia.</p></div></div>
+  {% set analysis = followup_analysis.padrino_analysis %}
+  <div class="followup-report-lead"><h3>{{ analysis.title }}</h3><p>{{ analysis.summary }}</p></div>
+  <div class="followup-report-grid"><article><h3>Situación de los grupos</h3><ul>{% for item in analysis.findings %}<li>{{ item }}</li>{% endfor %}</ul></article><article class="possible-box"><h3>Situaciones posibles</h3><ul>{% for item in analysis.possible_situations %}<li>{{ item }}</li>{% endfor %}</ul></article><article><h3>Plan de seguimiento</h3><ol>{% for item in analysis.actions %}<li>{{ item }}</li>{% endfor %}</ol></article></div>
+  <div class="followup-two-column"><div class="followup-chart-card"><p class="chart-kicker">BALANCE DE ASISTENCIA</p><h3>CLEI 3B frente a CLEI 5-6</h3><div class="followup-chart-box"><canvas id="followupPadrinoChart" aria-label="Balance de grupos apadrinados"></canvas><p class="chart-empty" data-empty-for="followupPadrinoChart" hidden>No hay datos suficientes para graficar.</p></div></div><div class="followup-student-card"><p class="chart-kicker">PRIORIDAD NOMINAL</p><h3>Estudiantes que requieren verificación</h3>{% for clei, data in followup_summary.padrino.items() %}<div class="padrino-group-block"><strong>{{ clei }}</strong><span>{{ data.groups|length }} grupos · {{ data.students|length }} casos priorizados</span>{% if data.students %}<ul>{% for student in data.students[:8] %}<li><b>{{ student.name }}</b><small>{{ student.group }} · {{ student.absent }} faltas · {{ student.rate }}% asistencia{% if student.observations %}<br>Observación: {{ student.observations|join('; ') }}{% endif %}</small></li>{% endfor %}</ul>{% else %}<p>No hay alertas altas con el criterio actual.</p>{% endif %}</div>{% endfor %}</div></div>
 </section>
 
-<section class="panel followup-data-panel" aria-labelledby="followup-subject-data">
-  <div class="panel-heading"><div><p class="chart-kicker">EVIDENCIA DESAGREGADA</p><h2 id="followup-subject-data">Comparativo de materias</h2></div><span class="interpretation-note">La tasa solo se interpreta junto con el número de sesiones.</span></div>
-  <div class="table-scroll"><table><thead><tr><th>Materia</th><th>Sesiones</th><th>Asistencias</th><th>Inasistencias</th><th>Asistencia</th><th>Promedio</th></tr></thead><tbody>{% for subject, values in followup_summary.subjects.items() %}<tr><td><strong>{{ subject }}</strong></td><td>{{ values.sessions }}</td><td>{{ values.present }}</td><td class="risk-high">{{ values.absent }}</td><td>{{ values.rate }}%</td><td>{{ '%.2f'|format(values.average) if values.average is not none else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="empty-state">No hay datos desagregados disponibles.</td></tr>{% endfor %}</tbody></table></div>
-</section>
-
-<section class="panel followup-data-panel padrino-detail-panel" aria-labelledby="padrino-detail-title">
-  <div class="panel-heading"><div><p class="chart-kicker">SEGUIMIENTO NOMINAL</p><h2 id="padrino-detail-title">Evidencia de los grupos apadrinados</h2></div><span class="interpretation-note">Prioridad: CLEI 3B y CLEI 5-6</span></div>
-  <div class="padrino-detail-grid">
-    {% for clei, data in followup_summary.padrino.items() %}
-      <article class="padrino-detail-card"><h3>{{ clei }}</h3><p class="panel-help">Grupos encontrados: {{ data.groups|length }} · Casos priorizados: {{ data.students|length }}</p>
-        {% if data.students %}<ul class="padrino-student-list">{% for student in data.students[:8] %}<li><strong>{{ student.name }}</strong><span>{{ student.group }} · {{ student.absent }} faltas · {{ student.rate }}% asistencia</span></li>{% endfor %}</ul>{% else %}<p class="panel-help">No hay estudiantes priorizados con los criterios actuales.</p>{% endif %}
-      </article>
-    {% endfor %}
-  </div>
-</section>
-
-<section class="panel followup-data-panel"><div class="panel-heading"><div><p class="chart-kicker">CRITERIO DE USO</p><h2>Lectura responsable</h2></div></div><ul class="followup-limitations">{% for item in followup_analysis.limitations %}<li>{{ item }}</li>{% endfor %}</ul></section>
+<section class="followup-limitations"><p class="eyebrow">CRITERIO PROFESIONAL</p><h2>Lectura responsable</h2><ul>{% for item in followup_analysis.limitations %}<li>{{ item }}</li>{% endfor %}</ul></section>
+{% else %}
+<section class="followup-empty"><h2>El informe integral está pendiente</h2><p>Cuando la conexión con Google Drive esté disponible, aquí aparecerán los tres apartados consolidados.</p></section>
 {% endif %}
-
-<section class="panel interpretation">
-  <div class="panel-heading">
-    <div>
-      <p class="chart-kicker">LECTURA DOCENTE</p>
-      <h2>Interpretación pedagógica</h2>
-    </div>
-
-    <span class="interpretation-note">
-      Los datos orientan decisiones; no reemplazan la observación del estudiante.
-    </span>
-  </div>
-
-  <ul>
-    {% for interpretation in interpretations %}
-      <li>{{ interpretation }}</li>
-    {% else %}
-      <li>
-        No hay información suficiente para emitir una interpretación.
-      </li>
-    {% endfor %}
-  </ul>
-</section>
-
-<section class="panel risk-panel analytics-risk-panel">
-  <div class="panel-heading">
-    <div>
-      <p class="chart-kicker">ACCIÓN PRIORITARIA</p>
-      <h2>Estudiantes que requieren seguimiento</h2>
-    </div>
-
-    <span class="interpretation-note">
-      Criterio: asistencia menor al 70% o más inasistencias que asistencias. Se muestran los 12 casos con mayor prioridad.
-    </span>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Estudiante</th>
-        <th>CLEI / grupo</th>
-        <th>Sesiones</th>
-        <th>Asistencias</th>
-        <th>Inasistencias</th>
-        <th>Porcentaje</th>
-        <th>Lectura</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      {% for item in risk_students %}
-      <tr>
-        <td>
-          <strong>{{ item.name }}</strong>
-        </td>
-
-        <td>
-          CLEI {{ item.clei }}
-          <small>{{ item.group }}</small>
-        </td>
-
-        <td>{{ item.sessions }}</td>
-        <td>{{ item.present }}</td>
-        <td class="risk-high">{{ item.absent }}</td>
-
-        <td>
-          <span class="rate-badge {% if item.rate < 70 %}rate-danger{% endif %}">
-            {{ item.rate }}%
-          </span>
-        </td>
-
-        <td class="risk-high">
-          {{ item.risk_reason or 'Revisar asistencia y causas' }}
-        </td>
-      </tr>
-
-      {% else %}
-      <tr>
-        <td colspan="7" class="empty-state">
-          No hay estudiantes priorizados con los registros actuales.
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
 {% endblock %}
+{% block scripts %}<script id="analytics-data" type="application/json">{{ chart_data|safe }}</script><script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
 
-{% block scripts %}
-<script id="analytics-data" type="application/json">
-  {{ chart_data|safe }}
-</script>
-
-<script
-  src="{{ url_for('static', filename='js/analytics.js') }}"
-  defer>
-</script>
-{% endblock %}
