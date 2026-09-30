@@ -4,6 +4,7 @@ import os
 import re
 import time
 import unicodedata
+from html import escape as html_escape
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
@@ -63,12 +64,96 @@ def clean_text(value):
     return " ".join(str(value).replace("\n", " ").split()).strip()
 
 
+def default_guide_illustrations(guide):
+    """Crea propuestas visuales de respaldo cuando Gemini no devuelve ilustraciones."""
+    subject = clean_text(guide.get("subject", ""))
+    theme = clean_text(guide.get("theme", "el tema"))
+    concepts = guide.get("key_concepts", []) or []
+    first = clean_text(concepts[0]) if concepts else theme
+    second = clean_text(concepts[1]) if len(concepts) > 1 else "Ejemplo"
+    return [
+        {"title": f"Idea central: {theme}", "explanation": f"Relaciona {first} con el tema principal.", "type": "concept", "visual_subject": theme, "labels": ["Tema", first[:34], "Comprender"]},
+        {"title": "Ruta para resolverlo", "explanation": "Sigue una secuencia ordenada antes de comprobar el resultado.", "type": "process", "visual_subject": theme, "labels": ["Observar", "Aplicar", "Comprobar"]},
+        {"title": "Conexión con la vida cotidiana", "explanation": f"Usa {second} para reconocer el aprendizaje fuera del cuaderno.", "type": "application", "visual_subject": theme, "labels": ["Situación", "Decisión", "Resultado"]},
+    ]
+
+
+def detect_visual_subject(theme, subject, candidate=""):
+    """Elige el objeto visible que debe dibujarse, priorizando el tema curricular."""
+    text = normalize_header(f"{theme} {subject} {candidate}")
+    rules = [
+        ("cell", ("celula", "organelo", "membrana celular", "mitocondria")),
+        ("money", ("dinero", "moneda", "billete", "finanza", "presupuesto", "interes", "porcentaje", "compra", "venta", "ahorro")),
+        ("oak", ("roble", "arbol", "planta", "hoja", "semilla")),
+        ("ecosystem", ("ecosistema", "cadena alimentaria", "habitat", "biodiversidad")),
+        ("fraction", ("fraccion", "fracciones", "numerador", "denominador")),
+        ("equation", ("ecuacion", "ecuaciones", "igualdad", "algebra")),
+        ("triangle", ("triangulo", "geometria", "perimetro", "area")),
+        ("water", ("ciclo del agua", "evaporacion", "condensacion", "precipitacion")),
+    ]
+    for visual, keywords in rules:
+        if any(keyword in text for keyword in keywords):
+            return visual
+    return "concept"
+
+
+def enrich_guide_illustrations(guide):
+    """Combina las propuestas de Gemini con un render SVG determinista y accesible."""
+    illustrations = guide.get("illustrations") or default_guide_illustrations(guide)
+    if len(illustrations) < 3:
+        illustrations = (illustrations + default_guide_illustrations(guide))[:3]
+    result = []
+    for item in illustrations[:3]:
+        labels = [clean_text(label)[:34] for label in item.get("labels", []) if clean_text(label)]
+        while len(labels) < 2:
+            labels.append("Paso")
+        result.append({
+            "title": clean_text(item.get("title")) or "Representación visual",
+            "explanation": clean_text(item.get("explanation")) or "Observa la relación entre las partes.",
+            "type": item.get("type") if item.get("type") in {"concept", "process", "application"} else "concept",
+            "visual_subject": detect_visual_subject(guide.get("theme", ""), guide.get("subject", ""), item.get("visual_subject", "")),
+            "labels": labels[:5],
+        })
+    guide["illustrations"] = result
+    return guide
+
+
+def guide_illustration_svg(illustration):
+    labels = [html_escape(clean_text(item)[:34]) for item in illustration.get("labels", [])[:5]]
+    while len(labels) < 2:
+        labels.append("Paso")
+    title = html_escape(clean_text(illustration.get("title", "Ilustración"))[:70])
+    subject = illustration.get("visual_subject", "concept")
+    accent = {"cell": "#31865c", "money": "#2d8b57", "oak": "#4e8b4d", "fraction": "#b17b18", "equation": "#0c526b", "triangle": "#0c526b", "water": "#3c9ed1"}.get(subject, "#078f91")
+    if subject == "cell":
+        shapes = f'<ellipse cx="260" cy="116" rx="135" ry="73" fill="#d9f0df" stroke="#31865c" stroke-width="4"/><ellipse cx="260" cy="116" rx="47" ry="35" fill="#f3b5cf" stroke="#a33f73" stroke-width="3"/><circle cx="246" cy="108" r="8" fill="#a33f73"/><ellipse cx="170" cy="93" rx="18" ry="9" fill="#e2a043"/><ellipse cx="347" cy="142" rx="18" ry="9" fill="#e2a043"/><ellipse cx="205" cy="158" rx="15" ry="8" fill="#75aedd"/><ellipse cx="320" cy="83" rx="15" ry="8" fill="#75aedd"/><path d="M150 70 L86 53" stroke="#31865c" stroke-width="2"/><text x="32" y="48" class="label">Membrana</text><path d="M307 91 L420 58" stroke="#a33f73" stroke-width="2"/><text x="422" y="54" class="label">Núcleo</text><path d="M344 145 L430 178" stroke="#b17b18" stroke-width="2"/><text x="432" y="184" class="label">Organelo</text><text x="260" y="218" text-anchor="middle" class="label">{labels[0]} · {labels[1]}</text>'
+    elif subject == "money":
+        shapes = f'<rect x="90" y="67" width="215" height="92" rx="9" fill="#b9e6bd" stroke="#2d8b57" stroke-width="4"/><circle cx="197" cy="113" r="28" fill="#f4d37e" stroke="#2d8b57" stroke-width="3"/><text x="197" y="123" text-anchor="middle" font-size="28" font-weight="bold" fill="#2d8b57">$</text><circle cx="354" cy="121" r="39" fill="#f4d37e" stroke="#b17b18" stroke-width="4"/><text x="354" y="130" text-anchor="middle" font-size="29" font-weight="bold" fill="#9a6b12">$</text><path d="M305 112 H319" stroke="#b17b18" stroke-width="3"/><text x="197" y="194" text-anchor="middle" class="label">Billete</text><text x="354" y="194" text-anchor="middle" class="label">Moneda · {labels[0]}</text>'
+    elif subject == "oak":
+        shapes = f'<rect x="239" y="120" width="42" height="69" rx="8" fill="#9b6134"/><circle cx="195" cy="83" r="45" fill="#5bb970" stroke="#2d7745" stroke-width="3"/><circle cx="325" cy="83" r="45" fill="#5bb970" stroke="#2d7745" stroke-width="3"/><path d="M260 126 C210 100 185 72 148 71 M260 126 C310 100 335 72 372 71 M130 190 H390" fill="none" stroke="#8e6d45" stroke-width="5"/><text x="260" y="218" text-anchor="middle" class="label">Árbol de roble · {labels[0]}</text>'
+    elif subject == "fraction":
+        shapes = f'<circle cx="205" cy="118" r="66" fill="#fff3d5" stroke="#b17b18" stroke-width="4"/><path d="M205 118 L205 52 A66 66 0 0 1 262 151 Z" fill="#70b7d8" stroke="#b17b18" stroke-width="2"/><path d="M205 52 V184 M139 118 H271" stroke="#b17b18" stroke-width="2"/><text x="365" y="103" class="label">Parte / todo</text><text x="365" y="137" class="label">{labels[0]}</text><text x="205" y="210" text-anchor="middle" class="label">{labels[1]}</text>'
+    elif subject == "equation":
+        shapes = f'<path d="M110 166 H410" stroke="#6b7c85" stroke-width="5"/><rect x="102" y="81" width="95" height="55" rx="8" fill="#dff5f0" stroke="#078f91" stroke-width="3"/><rect x="323" y="81" width="95" height="55" rx="8" fill="#e7f0f8" stroke="#0c526b" stroke-width="3"/><text x="150" y="118" text-anchor="middle" font-size="22" font-weight="bold" fill="#078f91">x + 2</text><text x="370" y="118" text-anchor="middle" font-size="22" font-weight="bold" fill="#0c526b">8</text><text x="260" y="124" text-anchor="middle" font-size="32" font-weight="bold" fill="#173b4a">=</text><text x="260" y="202" text-anchor="middle" class="label">{labels[0]} · {labels[1]}</text>'
+    elif subject == "triangle":
+        shapes = f'<path d="M260 49 L150 180 H370 Z" fill="#e7f0f8" stroke="#0c526b" stroke-width="4"/><path d="M260 49 V180" stroke="#078f91" stroke-width="2" stroke-dasharray="6 5"/><text x="260" y="40" text-anchor="middle" class="label">{labels[0]}</text><text x="125" y="188" class="label">Base</text><text x="375" y="188" class="label">Altura</text>'
+    else:
+        shapes = f'<circle cx="240" cy="108" r="48" fill="#dff5f0" stroke="{accent}" stroke-width="3"/><path d="M240 38 V60 M240 156 V178 M170 108 H192 M288 108 H310" stroke="{accent}" stroke-width="3"/><text x="240" y="113" text-anchor="middle" class="label">{labels[0]}</text><text x="240" y="204" text-anchor="middle" class="label">{labels[1]}</text>'
+    return f'''<svg class="guide-illustration-svg" viewBox="0 0 520 230" role="img" aria-label="{title}"><rect width="520" height="230" rx="18" fill="#fbfdfd"/><text x="26" y="30" class="svg-title">{title}</text>{shapes}</svg>'''
+
+
+app.jinja_env.globals["guide_illustration_svg"] = guide_illustration_svg
+
+
 def build_self_study_guide_pdf(guide):
     """Construye un PDF descargable con el mismo contenido de la vista previa."""
+    enrich_guide_illustrations(guide)
     from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
     from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
 
     output = io.BytesIO()
@@ -101,9 +186,56 @@ def build_self_study_guide_pdf(guide):
         story.append(ListFlowable(items, bulletType="1", start="1", leftIndent=18))
         story.append(Spacer(1, 4))
 
+    def add_illustration(illustration):
+        drawing = Drawing(520, 150)
+        kind = illustration.get("type", "concept")
+        palette = {"concept": ("#dff5f0", "#078f91"), "process": ("#e7f0f8", "#0c526b"), "application": ("#fff3d5", "#b17b18")}
+        fill, accent = palette.get(kind, palette["concept"])
+        fill_color = colors.HexColor(fill)
+        accent_color = colors.HexColor(accent)
+        drawing.add(Rect(0, 0, 520, 150, 10, fillColor=colors.HexColor("#fbfdfd"), strokeColor=colors.HexColor("#d8e4e7")))
+        drawing.add(String(18, 128, clean_text(illustration.get("title", "Ilustración"))[:78], fontName="Helvetica-Bold", fontSize=10, fillColor=colors.HexColor("#173b4a")))
+        labels = [clean_text(value)[:27] for value in illustration.get("labels", [])[:3]]
+        while len(labels) < 2:
+            labels.append("Paso")
+        visual_subject = illustration.get("visual_subject", "")
+        if visual_subject == "cell":
+            drawing.add(Circle(260, 75, 58, fillColor=colors.HexColor("#d9f0df"), strokeColor=colors.HexColor("#31865c"), strokeWidth=2))
+            drawing.add(Circle(260, 75, 22, fillColor=colors.HexColor("#f3b5cf"), strokeColor=colors.HexColor("#a33f73"), strokeWidth=2))
+            drawing.add(String(260, 72, "Núcleo", textAnchor="middle", fontSize=7, fillColor=colors.HexColor("#7a3158")))
+            drawing.add(String(260, 15, f"Membrana · {labels[0]} · Organelos", textAnchor="middle", fontSize=8, fillColor=colors.HexColor("#31865c")))
+        elif visual_subject == "money":
+            drawing.add(Rect(92, 48, 210, 58, 7, fillColor=colors.HexColor("#b9e6bd"), strokeColor=colors.HexColor("#2d8b57"), strokeWidth=2))
+            drawing.add(Circle(197, 77, 17, fillColor=colors.HexColor("#f4d37e"), strokeColor=colors.HexColor("#2d8b57"), strokeWidth=2))
+            drawing.add(String(197, 73, "$", textAnchor="middle", fontSize=17, fillColor=colors.HexColor("#2d8b57")))
+            drawing.add(Circle(355, 77, 27, fillColor=colors.HexColor("#f4d37e"), strokeColor=colors.HexColor("#b17b18"), strokeWidth=2))
+            drawing.add(String(355, 73, "$", textAnchor="middle", fontSize=18, fillColor=colors.HexColor("#9a6b12")))
+            drawing.add(String(260, 20, f"Billete · Moneda · {labels[0]}", textAnchor="middle", fontSize=8, fillColor=colors.HexColor("#2d8b57")))
+        elif kind == "process":
+            for index, label in enumerate(labels):
+                x = 22 + index * 166
+                drawing.add(Rect(x, 48, 140, 52, 9, fillColor=fill_color, strokeColor=accent_color, strokeWidth=1.5))
+                drawing.add(String(x + 70, 70, label, textAnchor="middle", fontSize=9, fillColor=accent_color))
+                if index < len(labels) - 1:
+                    drawing.add(Line(x + 142, 74, x + 160, 74, strokeColor=accent_color, strokeWidth=2))
+        elif kind == "application":
+            drawing.add(Circle(125, 74, 35, fillColor=fill_color, strokeColor=accent_color, strokeWidth=2))
+            drawing.add(Circle(355, 74, 35, fillColor=fill_color, strokeColor=accent_color, strokeWidth=2))
+            drawing.add(Line(163, 74, 315, 74, strokeColor=accent_color, strokeWidth=2))
+            drawing.add(String(125, 70, labels[0], textAnchor="middle", fontSize=8, fillColor=accent_color))
+            drawing.add(String(355, 70, labels[1], textAnchor="middle", fontSize=8, fillColor=accent_color))
+        else:
+            drawing.add(Circle(260, 76, 38, fillColor=fill_color, strokeColor=accent_color, strokeWidth=2))
+            drawing.add(String(260, 72, labels[0], textAnchor="middle", fontSize=8, fillColor=accent_color))
+            drawing.add(String(260, 22, labels[1], textAnchor="middle", fontSize=8, fillColor=accent_color))
+        story.extend([drawing, Paragraph(clean_text(illustration.get("explanation", "")), styles["GuideBody"]), Spacer(1, 4)])
+
     add_paragraph_section("Presentación", guide.get("introduction", ""))
     add_paragraph_section("Objetivo de aprendizaje", guide.get("objective", ""))
     add_paragraph_section("Explicación del tema", guide.get("explanation", ""))
+    story.append(Paragraph("Ilustraciones para comprender", styles["GuideHeading"]))
+    for illustration in guide.get("illustrations", [])[:3]:
+        add_illustration(illustration)
     add_list_section("Conceptos clave", guide.get("key_concepts", []))
     add_list_section("Ejemplos desarrollados", guide.get("worked_examples", []))
     add_list_section("Materiales necesarios", guide.get("materials", []))
@@ -2194,6 +2326,7 @@ def materiales():
                         "theme": selected["theme"], "week": selected["week"],
                         "date_label": selected["date_label"],
                     })
+                    enrich_guide_illustrations(generated_guide)
                     page_data["generated_guide"] = generated_guide
                 except GeminiPlanningError as exc:
                     page_data["guide_error"] = str(exc)
