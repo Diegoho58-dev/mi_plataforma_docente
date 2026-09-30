@@ -268,3 +268,115 @@ def generate_planning_proposal(
         ) from exc
 
     return _validate_proposal(generated)
+
+
+def _validate_self_study_guide(payload):
+    if not isinstance(payload, dict):
+        raise GeminiPlanningError("Gemini no devolvió una guía válida.")
+
+    def text(name, required=True, limit=5000):
+        value = " ".join(str(payload.get(name, "")).split()).strip()
+        if required and not value:
+            raise GeminiPlanningError(f"La guía no contiene el campo {name}.")
+        if len(value) > limit:
+            raise GeminiPlanningError(f"El campo {name} de la guía es demasiado extenso.")
+        return value
+
+    def text_list(name, minimum=1, limit=12):
+        values = payload.get(name, [])
+        if not isinstance(values, list):
+            raise GeminiPlanningError(f"El campo {name} de la guía no es una lista.")
+        cleaned = [" ".join(str(value).split()).strip() for value in values if str(value).strip()]
+        if len(cleaned) < minimum:
+            raise GeminiPlanningError(f"La guía no contiene suficientes elementos en {name}.")
+        if len(cleaned) > limit:
+            cleaned = cleaned[:limit]
+        return cleaned
+
+    return {
+        "title": text("title", limit=300),
+        "introduction": text("introduction", limit=2500),
+        "objective": text("objective", limit=1200),
+        "explanation": text("explanation", limit=6000),
+        "activities": text_list("activities", minimum=3),
+        "reflection_questions": text_list("reflection_questions", minimum=3),
+        "evaluation": text_list("evaluation", minimum=3),
+        "answer_key": text_list("answer_key", minimum=3),
+        "materials": text_list("materials", minimum=1, limit=8),
+        "closing": text("closing", limit=1200),
+    }
+
+
+def generate_self_study_guide(
+    subject,
+    clei,
+    theme,
+    week="",
+    context="",
+    timeout=45,
+):
+    """Genera una guía autodidacta sin escribir datos en Drive."""
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise GeminiPlanningError("Falta configurar GEMINI_API_KEY en el entorno del servidor.")
+    if not str(theme).strip():
+        raise GeminiPlanningError("No se puede generar una guía sin tema curricular.")
+
+    model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    prompt = f"""Actúa como docente experto en educación flexible para jóvenes y adultos en Colombia.
+
+Materia: {subject}
+CLEI: {clei}
+Contexto: {context or 'Educación flexible'}
+Semana planeada vigente: {week or 'No especificada'}
+Tema oficial de la planeación: {theme}
+
+Diseña una guía autodidacta completa para que un estudiante pueda trabajar sin acompañamiento permanente.
+La guía debe ser clara, práctica, inclusiva y apropiada para jóvenes y adultos. Debe partir únicamente del tema oficial recibido.
+No inventes otro tema, materia o CLEI. No menciones que fue generada por una IA.
+
+Devuelve exclusivamente un objeto JSON válido con estos campos:
+- title: título concreto de la guía.
+- introduction: presentación y conexión del tema con situaciones cotidianas.
+- objective: objetivo de aprendizaje observable.
+- explanation: explicación amplia pero clara del tema, con ejemplos.
+- activities: lista de mínimo 4 actividades progresivas, incluyendo una actividad práctica relacionada con el contexto del estudiante.
+- reflection_questions: lista de mínimo 4 preguntas de comprensión y reflexión.
+- evaluation: lista de mínimo 4 criterios o preguntas de autoevaluación.
+- answer_key: lista de respuestas orientadoras para las actividades o preguntas.
+- materials: lista de materiales sencillos y accesibles.
+- closing: recomendaciones finales para revisar y demostrar lo aprendido.
+
+Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
+
+    body = {
+        "system_instruction": {"parts": [{"text": "Devuelve únicamente JSON válido y respeta exactamente los campos solicitados."}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.45,
+            "candidateCount": 1,
+            "maxOutputTokens": 5000,
+            "responseMimeType": "application/json",
+        },
+    }
+    endpoint = GEMINI_API_URL.format(model=model) + "?key=" + api_key
+    http_request = request.Request(endpoint, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with request.urlopen(http_request, timeout=timeout) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:1000]
+        raise GeminiPlanningError(f"Gemini rechazó la guía ({exc.code}). Detalle: {detail}") from exc
+    except error.URLError as exc:
+        raise GeminiPlanningError(f"No fue posible conectarse con Gemini. Detalle: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise GeminiPlanningError("La conexión con Gemini agotó el tiempo de espera.") from exc
+    except json.JSONDecodeError as exc:
+        raise GeminiPlanningError("Gemini devolvió una respuesta que no es JSON válido.") from exc
+
+    try:
+        text_response = response_payload["candidates"][0]["content"]["parts"][0]["text"]
+        generated = json.loads(text_response)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise GeminiPlanningError("Gemini no devolvió la estructura JSON esperada para la guía.") from exc
+    return _validate_self_study_guide(generated)
