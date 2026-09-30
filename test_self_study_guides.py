@@ -6,7 +6,7 @@ os.environ.setdefault("ADMIN_USER", "admin")
 os.environ.setdefault("ADMIN_PASSWORD", "password")
 os.environ.setdefault("GOOGLE_DRIVE_ENABLED", "false")
 
-from app import app, latest_planned_topics_by_subject_clei
+from app import app, enrich_guide_illustrations, latest_planned_topics_by_subject_clei
 from gemini_planning import _validate_self_study_guide
 
 planning = [
@@ -38,6 +38,9 @@ guide = _validate_self_study_guide({
 })
 assert guide["title"] == "Guía de ecuaciones"
 assert len(guide["activities"]) == 6
+enrich_guide_illustrations(guide)
+assert len(guide["illustrations"]) == 3
+assert all(item["labels"] for item in guide["illustrations"])
 
 app.testing = True
 app.config["TESTING"] = True
@@ -49,5 +52,4 @@ with app.test_client() as client:
     assert response.mimetype == "application/pdf"
     assert response.data.startswith(b"%PDF")
 
-print("OK: selección por materia/CLEI, guía extensa y PDF funcionan.")
-
+print("OK: selección por materia/CLEI, guía extensa, ilustraciones y PDF funcionan.")
