@@ -27,3 +27,4 @@ fallback = fallback_followup_analysis(summary)
 assert fallback["teacher_overview"]["actions"]
 assert fallback["padrino_analysis"]["title"]
 print("OK: consolidado integral y padrinos CLEI 3B/CLEI 5-6 funcionan.")
+
