@@ -389,3 +389,98 @@ Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         raise GeminiPlanningError("Gemini no devolvió la estructura JSON esperada para la guía.") from exc
     return _validate_self_study_guide(generated)
+
+
+def _validate_followup_analysis(payload):
+    if not isinstance(payload, dict):
+        raise GeminiPlanningError("Gemini no devolvió un análisis de seguimiento válido.")
+
+    def clean_text(value, field, limit=5000):
+        result = " ".join(str(value or "").split()).strip()
+        if not result:
+            raise GeminiPlanningError(f"El análisis no contiene el campo {field}.")
+        if len(result) > limit:
+            raise GeminiPlanningError(f"El campo {field} del análisis es demasiado extenso.")
+        return result
+
+    def clean_list(value, field, minimum=2, limit=10):
+        if not isinstance(value, list):
+            raise GeminiPlanningError(f"El campo {field} del análisis no es una lista.")
+        result = [" ".join(str(item or "").split()).strip() for item in value if str(item or "").strip()]
+        if len(result) < minimum:
+            raise GeminiPlanningError(f"El análisis no contiene suficientes elementos en {field}.")
+        return result[:limit]
+
+    def section(name):
+        data = payload.get(name)
+        if not isinstance(data, dict):
+            raise GeminiPlanningError(f"Falta la sección {name} del análisis.")
+        return {
+            "title": clean_text(data.get("title"), f"{name}.title", 300),
+            "summary": clean_text(data.get("summary"), f"{name}.summary", 3000),
+            "findings": clean_list(data.get("findings"), f"{name}.findings", 3),
+            "possible_situations": clean_list(data.get("possible_situations"), f"{name}.possible_situations", 2),
+            "actions": clean_list(data.get("actions"), f"{name}.actions", 3),
+        }
+
+    return {
+        "teacher_overview": section("teacher_overview"),
+        "subjects_analysis": section("subjects_analysis"),
+        "padrino_analysis": section("padrino_analysis"),
+        "limitations": clean_list(payload.get("limitations"), "limitations", 2, 6),
+    }
+
+
+def generate_followup_analysis(summary, timeout=60):
+    """Analiza el consolidado de Drive sin modificar ninguna fuente."""
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise GeminiPlanningError("Falta configurar GEMINI_API_KEY para el análisis de seguimiento.")
+    model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    compact_summary = json.dumps(summary, ensure_ascii=False, separators=(",", ":"))
+    prompt = f"""Actúa como coordinador pedagógico experto en educación flexible para jóvenes y adultos en Colombia.
+
+Analiza el siguiente consolidado real de registros de Google Drive. Incluye Matemáticas, Ciencias Naturales y las otras materias registradas por docentes. El tercer apartado debe concentrarse exclusivamente en los grupos apadrinados CLEI 3B y CLEI 5-6.
+
+DATOS CONSOLIDADOS:
+{compact_summary}
+
+Entrega un análisis profesional, prudente y accionable. Diferencia hechos observados de posibles situaciones. No diagnostiques problemas personales ni inventes causas. Cuando propongas una situación posible, usa lenguaje como "podría estar relacionado con" y recomienda verificarla con observación, conversación o seguimiento.
+
+Devuelve exclusivamente JSON válido con esta estructura exacta:
+{{
+  "teacher_overview": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
+  "subjects_analysis": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
+  "padrino_analysis": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
+  "limitations":["mínimo 2 limitaciones o verificaciones necesarias"]
+}}
+
+La primera sección debe interpretar todos los CLEI en el rol docente de Matemáticas y Ciencias Naturales.
+La segunda debe comparar las dos materias propias con las otras materias, señalando patrones de asistencia, cobertura, desempeño y coincidencias.
+La tercera debe analizar CLEI 3B y CLEI 5-6 con prioridad, incluyendo estudiantes, grupos, asistencia, ausencias, materias y observaciones disponibles.
+Escribe en español profesional, con lenguaje claro para tomar decisiones pedagógicas."""
+    body = {
+        "system_instruction": {"parts": [{"text": "Devuelve únicamente JSON válido y no inventes datos que no estén en el consolidado."}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.25, "candidateCount": 1, "maxOutputTokens": 7000, "responseMimeType": "application/json"},
+    }
+    endpoint = GEMINI_API_URL.format(model=model) + "?key=" + api_key
+    http_request = request.Request(endpoint, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with request.urlopen(http_request, timeout=timeout) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:1000]
+        raise GeminiPlanningError(f"Gemini rechazó el análisis ({exc.code}). Detalle: {detail}") from exc
+    except error.URLError as exc:
+        raise GeminiPlanningError(f"No fue posible conectarse con Gemini para el seguimiento. Detalle: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise GeminiPlanningError("El análisis de seguimiento agotó el tiempo de espera.") from exc
+    except json.JSONDecodeError as exc:
+        raise GeminiPlanningError("Gemini devolvió una respuesta no válida para el seguimiento.") from exc
+    try:
+        text_response = response_payload["candidates"][0]["content"]["parts"][0]["text"]
+        generated = json.loads(text_response)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise GeminiPlanningError("Gemini no devolvió la estructura esperada para el seguimiento.") from exc
+    return _validate_followup_analysis(generated)
