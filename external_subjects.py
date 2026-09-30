@@ -448,6 +448,20 @@ def _demo():
     return True
 
 
+def _student_aliases(name, identification):
+    """Devuelve alias para unir variaciones de documento y nombre."""
+    aliases = []
+    document = re.sub(r"\D", "", re.sub(r"[.,]0+$", "", clean(identification)))
+    if document:
+        aliases.append(f"id:{document}")
+    normalized_name = normalize(name)
+    normalized_name = " ".join(re.sub(r"[^a-z0-9]+", " ", normalized_name).split())
+    if normalized_name:
+        aliases.append(f"name:{normalized_name}")
+        aliases.append(f"name-sorted:{' '.join(sorted(normalized_name.split()))}")
+    return list(dict.fromkeys(aliases))
+
+
 def build_external_matrix(records, source_filter="", subject_filter="", clei_filter="", search=""):
     """Agrupa registros externos por estudiante y fecha para una vista matricial."""
     needle = normalize(search)
@@ -468,10 +482,22 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
 
     dates = {}
     students = {}
+    student_aliases = {}
     for item in filtered:
         date_key = item["class_date"].isoformat()
         dates[date_key] = item["class_date"].strftime("%d/%m/%Y")
-        key = (item["student"], item["identification"], item["group"], item["clei"])
+        aliases = _student_aliases(
+            item.get("student", ""),
+            item.get("identification", ""),
+        )
+        key = next(
+            (student_aliases[alias] for alias in aliases if alias in student_aliases),
+            None,
+        )
+        if key is None:
+            key = aliases[0] if aliases else f"row:{len(students)}"
+        for alias in aliases:
+            student_aliases[alias] = key
         student = students.setdefault(key, {
             "name": item["student"],
             "identification": item["identification"],
@@ -479,14 +505,34 @@ def build_external_matrix(records, source_filter="", subject_filter="", clei_fil
             "clei": item["clei"],
             "dates": {},
         })
-        student["dates"].setdefault(date_key, []).append({
+        if len(clean(item.get("student", ""))) > len(clean(student.get("name", ""))):
+            student["name"] = item["student"]
+        if not clean(student.get("identification", "")) and clean(item.get("identification", "")):
+            student["identification"] = item["identification"]
+        cell = {
             "subject": item["subject"],
             "attendance": item["attendance"],
             "grade": item["grade"],
             "block": item["block"],
             "source": item["source"],
             "week_mismatch": item.get("week_mismatch", False),
-        })
+        }
+        same_subject = next(
+            (
+                existing
+                for existing in student["dates"].setdefault(date_key, [])
+                if existing["subject"] == cell["subject"]
+            ),
+            None,
+        )
+        if same_subject is None:
+            student["dates"][date_key].append(cell)
+        else:
+            if not same_subject["attendance"] and cell["attendance"]:
+                same_subject["attendance"] = cell["attendance"]
+            if not same_subject["grade"] and cell["grade"]:
+                same_subject["grade"] = cell["grade"]
+            same_subject["week_mismatch"] = same_subject["week_mismatch"] or cell["week_mismatch"]
 
     for student in students.values():
         absences = 0
