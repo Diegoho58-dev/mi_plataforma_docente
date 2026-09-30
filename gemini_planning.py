@@ -457,7 +457,7 @@ Devuelve exclusivamente JSON válido con esta estructura exacta:
 
 La primera sección debe interpretar todos los CLEI en el rol docente de Matemáticas y Ciencias Naturales.
 La segunda debe comparar las dos materias propias con las otras materias, señalando patrones de asistencia, cobertura, desempeño y coincidencias.
-La tercera debe analizar CLEI 3B y CLEI 5-6 con prioridad, incluyendo estudiantes, grupos, asistencia, ausencias, materias y observaciones disponibles.
+La tercera debe analizar CLEI 3B y CLEI 5-6 con prioridad, incluyendo estudiantes, grupos, asistencia, ausencias, materias, fuentes, observaciones nominales y cualquier patrón repetido. Redacta un informe completo: situación de cada grupo, prioridades individuales, posibles explicaciones prudentes, acciones inmediatas, acciones de aula y un plan de verificación para las próximas semanas.
 Escribe en español profesional, con lenguaje claro para tomar decisiones pedagógicas."""
     body = {
         "system_instruction": {"parts": [{"text": "Devuelve únicamente JSON válido y no inventes datos que no estén en el consolidado."}]},
