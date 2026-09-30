@@ -12,7 +12,7 @@ from flask import Flask, make_response, redirect, render_template, request, sess
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
-from gemini_planning import GeminiPlanningError, generate_planning_proposal
+from gemini_planning import GeminiPlanningError, generate_planning_proposal, generate_self_study_guide
 from external_subjects import build_external_matrix, clei_key, consolidate_records, mark_week_mismatches, parse_values, summarize
 
 app = Flask(__name__)
@@ -1009,6 +1009,36 @@ def read_additional_planning_rows(buffer):
             if current_score > previous_score:
                 consolidated[previous_index] = item
     return consolidated
+
+
+def latest_planned_topic_by_clei(planning):
+    """Obtiene el último tema vigente de la planeación adicional para cada CLEI."""
+    cleis = ["CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"]
+    latest = {clei: None for clei in cleis}
+    for item in planning or []:
+        clei = normalize_planning_clei(item.get("group", ""))
+        if clei not in latest:
+            continue
+        theme = clean_text(item.get("theme", ""))
+        if not theme or normalize_header(theme) in {"sin tema registrado", "n/a"}:
+            continue
+        previous = latest[clei]
+        if previous is None or (
+            item.get("week_number", 0),
+            normalize_header(item.get("subject", "")),
+        ) >= (
+            previous.get("week_number", 0),
+            normalize_header(previous.get("subject", "")),
+        ):
+            latest[clei] = {
+                "clei": clei,
+                "subject": item.get("subject", "Sin asignatura"),
+                "theme": theme,
+                "week": item.get("week", "Semana no especificada"),
+                "week_number": item.get("week_number", 0),
+                "date_label": item.get("date_label", "Fecha por definir"),
+            }
+    return latest
 
 
 def latest_planning_by_subject_group(buffer):
@@ -2034,6 +2064,9 @@ def asistencia():
 def materiales():
     page_data = {
         "materials": [],
+        "guide_cleis": {},
+        "generated_guide": None,
+        "guide_error": None,
         "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
         "context_filter": "",
         "group_filter": "",
@@ -2047,6 +2080,34 @@ def materiales():
     try:
         buffer, metadata = download_excel_from_drive()
         classes = read_planning_rows(buffer)
+        try:
+            planning_buffer, _ = download_planning_from_drive()
+            guide_cleis = latest_planned_topic_by_clei(read_additional_planning_rows(planning_buffer))
+        except Exception:
+            app.logger.exception("No se pudo leer la planeación para preparar las guías")
+            guide_cleis = {}
+        guide_clei = request.args.get("generar_guia", "").strip()
+        if guide_clei:
+            selected = guide_cleis.get(guide_clei)
+            if not selected:
+                page_data["guide_error"] = f"No hay un tema planeado vigente para {guide_clei}."
+            else:
+                try:
+                    generated_guide = generate_self_study_guide(
+                        selected["subject"], selected["clei"], selected["theme"],
+                        week=selected["week"], context="Alta y educación flexible",
+                    )
+                    generated_guide.update({
+                        "clei": selected["clei"], "subject": selected["subject"],
+                        "theme": selected["theme"], "week": selected["week"],
+                        "date_label": selected["date_label"],
+                    })
+                    page_data["generated_guide"] = generated_guide
+                except GeminiPlanningError as exc:
+                    page_data["guide_error"] = str(exc)
+                except Exception:
+                    app.logger.exception("No se pudo generar la guía desde Materiales")
+                    page_data["guide_error"] = "No se pudo generar la guía. Revisa la configuración de Gemini e inténtalo nuevamente."
         context_filter = request.args.get("contexto", "").strip()
         group_filter = request.args.get("grupo", "").strip()
         search = request.args.get("buscar", "").strip()
@@ -2066,6 +2127,7 @@ def materiales():
         ]
         page_data.update({
             "materials": materials,
+            "guide_cleis": guide_cleis,
             "context_filter": context_filter,
             "group_filter": group_filter,
             "search": search,
@@ -2077,6 +2139,13 @@ def materiales():
         app.logger.exception("No se pudieron leer los materiales")
         page_data["data_error"] = "No se pudo leer el Excel desde Google Drive."
         return render_template("materiales.html", current_user=session.get("user"), **page_data)
+
+
+@app.route("/materiales/guia-autodidacta/<path:clei>")
+@login_required
+def guia_autodidacta(clei):
+    """Compatibilidad: redirige la guía a la misma vista de Materiales."""
+    return redirect(url_for("materiales", generar_guia=clei))
 
 
 @app.route("/otras-materias")
