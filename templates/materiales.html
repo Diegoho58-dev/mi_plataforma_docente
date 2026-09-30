@@ -15,44 +15,61 @@
     <div>
       <p class="eyebrow">APOYO AUTODIDACTA</p>
       <h2 id="guides-title">Generar guías autodidactas</h2>
-      <p class="panel-help">La guía toma el último tema registrado en la semana más reciente de Planeación para cada CLEI.</p>
+      <p class="panel-help">Selecciona una materia y un CLEI. El tema se toma de la última semana registrada en Planeación.</p>
     </div>
   </div>
-  <div class="materials-grid guide-grid">
-    {% for clei, item in guide_cleis.items() %}
-      <article class="material-card guide-card">
-        <div class="material-meta"><span class="tag alta">{{ clei }}</span>{% if item %}<span class="material-date">{{ item.week }}</span>{% endif %}</div>
-        <h2>{{ item.subject if item else 'Sin tema vigente' }}</h2>
-        {% if item %}
-          <p><strong>Último tema planeado:</strong> {{ item.theme }}</p>
-          <p class="material-source">{{ item.date_label }}</p>
-          <a class="material-button" href="{{ url_for('materiales', generar_guia=clei) }}">Generar guía autodidacta ↗</a>
-        {% else %}
-          <p>No hay un tema vigente en Planeación para este CLEI.</p>
-          <span class="primary-button disabled-button">Guía no disponible</span>
-        {% endif %}
-      </article>
-    {% else %}
-      <div class="panel empty-state material-empty">No se pudieron cargar los temas de Planeación.</div>
-    {% endfor %}
-  </div>
+  <form class="materials-toolbar guide-selector" method="get" action="{{ url_for('materiales') }}">
+    <div>
+      <label for="materia-guia">Materia</label>
+      <select id="materia-guia" name="materia_guia" required>
+        <option value="">Selecciona una materia</option>
+        {% for subject in guide_subjects %}
+          <option value="{{ subject }}" {% if subject == guide_subject %}selected{% endif %}>{{ subject }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="clei-guia">CLEI</label>
+      <select id="clei-guia" name="clei_guia" required>
+        <option value="">Selecciona un CLEI</option>
+        {% for clei in guide_cleis %}
+          <option value="{{ clei }}" {% if clei == guide_clei %}selected{% endif %}>{{ clei }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="primary-button" type="submit">Generar guía</button>
+  </form>
+  {% if guide_subject and guide_clei and guide_options.get(guide_subject, {}).get(guide_clei) %}
+    {% set selected_topic = guide_options.get(guide_subject, {}).get(guide_clei) %}
+    <p class="panel-help"><strong>Tema que se utilizará:</strong> {{ selected_topic.theme }} · {{ selected_topic.week }}</p>
+  {% endif %}
 </section>
 
 {% if generated_guide %}
 <section class="panel guide-document" aria-labelledby="generated-guide-title">
   <div class="guide-header">
-    <p class="eyebrow">{{ generated_guide.subject }} · {{ generated_guide.clei }}</p>
-    <h2 id="generated-guide-title">{{ generated_guide.title }}</h2>
-    <p class="material-source">Tema de Planeación: <strong>{{ generated_guide.theme }}</strong><br>{{ generated_guide.week }} · {{ generated_guide.date_label }}</p>
+    <div>
+      <p class="eyebrow">{{ generated_guide.subject }} · {{ generated_guide.clei }}</p>
+      <h2 id="generated-guide-title">{{ generated_guide.title }}</h2>
+      <p class="material-source">Tema de Planeación: <strong>{{ generated_guide.theme }}</strong><br>{{ generated_guide.week }} · {{ generated_guide.date_label }}</p>
+    </div>
+    <form method="post" action="{{ url_for('descargar_guia_autodidacta_pdf') }}">
+      <textarea name="guide_json" hidden>{{ generated_guide|tojson }}</textarea>
+      <button class="primary-button" type="submit">Descargar guía en PDF</button>
+    </form>
   </div>
   <article class="guide-section"><h3>Presentación</h3><p>{{ generated_guide.introduction }}</p></article>
   <article class="guide-section"><h3>Objetivo de aprendizaje</h3><p>{{ generated_guide.objective }}</p></article>
   <article class="guide-section"><h3>Explicación del tema</h3><p>{{ generated_guide.explanation }}</p></article>
+  <article class="guide-section"><h3>Conceptos clave</h3><ol>{% for item in generated_guide.key_concepts %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Ejemplos desarrollados</h3><ol>{% for item in generated_guide.worked_examples %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Materiales necesarios</h3><ul>{% for item in generated_guide.materials %}<li>{{ item }}</li>{% endfor %}</ul></article>
   <article class="guide-section"><h3>Actividades</h3><ol>{% for item in generated_guide.activities %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Preguntas de reflexión</h3><ol>{% for item in generated_guide.reflection_questions %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Autoevaluación</h3><ol>{% for item in generated_guide.evaluation %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section guide-answer-key"><h3>Respuestas orientadoras</h3><ol>{% for item in generated_guide.answer_key %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Errores frecuentes y cómo corregirlos</h3><ul>{% for item in generated_guide.common_mistakes %}<li>{{ item }}</li>{% endfor %}</ul></article>
+  <article class="guide-section"><h3>Plan de estudio sugerido</h3><ol>{% for item in generated_guide.study_plan %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Cierre</h3><p>{{ generated_guide.closing }}</p></article>
 </section>
 {% endif %}
