@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, make_response, redirect, render_template, request, session, url_for
+from flask import Flask, make_response, redirect, render_template, request, send_file, session, url_for
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -60,6 +60,62 @@ def clean_text(value):
     if value is None:
         return ""
     return " ".join(str(value).replace("\n", " ").split()).strip()
+
+
+def build_self_study_guide_pdf(guide):
+    """Construye un PDF descargable con el mismo contenido de la vista previa."""
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=letter,
+        rightMargin=1.8 * cm,
+        leftMargin=1.8 * cm,
+        topMargin=1.6 * cm,
+        bottomMargin=1.6 * cm,
+        title=guide.get("title", "Guía autodidacta"),
+        author="Panel Docente",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="GuideTitle", parent=styles["Title"], alignment=TA_CENTER, fontSize=18, leading=23, spaceAfter=10))
+    styles.add(ParagraphStyle(name="GuideMeta", parent=styles["Normal"], alignment=TA_CENTER, fontSize=9, leading=12, textColor="#52616b", spaceAfter=16))
+    styles.add(ParagraphStyle(name="GuideHeading", parent=styles["Heading2"], fontSize=13, leading=17, textColor="#1b5e68", spaceBefore=12, spaceAfter=6))
+    styles.add(ParagraphStyle(name="GuideBody", parent=styles["BodyText"], fontSize=10.5, leading=15, spaceAfter=7))
+    story = [
+        Paragraph(clean_text(guide.get("title", "Guía autodidacta")), styles["GuideTitle"]),
+        Paragraph(f"{clean_text(guide.get('subject', ''))} · {clean_text(guide.get('clei', ''))}<br/>Tema: {clean_text(guide.get('theme', ''))}<br/>{clean_text(guide.get('week', ''))} · {clean_text(guide.get('date_label', ''))}", styles["GuideMeta"]),
+    ]
+
+    def add_paragraph_section(title, text):
+        story.extend([Paragraph(title, styles["GuideHeading"]), Paragraph(clean_text(text), styles["GuideBody"])])
+
+    def add_list_section(title, values):
+        story.append(Paragraph(title, styles["GuideHeading"]))
+        items = [ListItem(Paragraph(clean_text(value), styles["GuideBody"]), leftIndent=12) for value in values or []]
+        story.append(ListFlowable(items, bulletType="1", start="1", leftIndent=18))
+        story.append(Spacer(1, 4))
+
+    add_paragraph_section("Presentación", guide.get("introduction", ""))
+    add_paragraph_section("Objetivo de aprendizaje", guide.get("objective", ""))
+    add_paragraph_section("Explicación del tema", guide.get("explanation", ""))
+    add_list_section("Conceptos clave", guide.get("key_concepts", []))
+    add_list_section("Ejemplos desarrollados", guide.get("worked_examples", []))
+    add_list_section("Materiales necesarios", guide.get("materials", []))
+    add_list_section("Actividades", guide.get("activities", []))
+    add_list_section("Preguntas de reflexión", guide.get("reflection_questions", []))
+    add_list_section("Autoevaluación", guide.get("evaluation", []))
+    add_list_section("Respuestas orientadoras", guide.get("answer_key", []))
+    add_list_section("Errores frecuentes y cómo corregirlos", guide.get("common_mistakes", []))
+    add_list_section("Plan de estudio sugerido", guide.get("study_plan", []))
+    add_paragraph_section("Cierre", guide.get("closing", ""))
+    document.build(story)
+    output.seek(0)
+    return output
 
 
 def format_date(value):
@@ -1092,6 +1148,36 @@ def latest_planning_by_subject_group(buffer):
     return latest
 
 
+def latest_planned_topics_by_subject_clei(planning):
+    """Obtiene el último tema planeado para Matemáticas/Ciencias y cada CLEI."""
+    subjects = ("Matemáticas", "Ciencias Naturales")
+    cleis = ("CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6")
+    latest = {subject: {clei: None for clei in cleis} for subject in subjects}
+    for item in planning or []:
+        subject_key = normalize_header(item.get("subject", ""))
+        if "matematic" in subject_key:
+            subject = "Matemáticas"
+        elif "biolog" in subject_key or "ciencias natural" in subject_key or subject_key in {"ciencias", "ciencia"}:
+            subject = "Ciencias Naturales"
+        else:
+            continue
+        clei = normalize_planning_clei(item.get("group", ""))
+        if clei not in latest[subject]:
+            continue
+        theme = clean_text(item.get("theme", ""))
+        if not theme or normalize_header(theme) in {"sin tema registrado", "n/a"}:
+            continue
+        previous = latest[subject][clei]
+        if previous is None or item.get("week_number", 0) >= previous.get("week_number", 0):
+            latest[subject][clei] = {
+                "clei": clei, "subject": subject, "theme": theme,
+                "week": item.get("week", "Semana no especificada"),
+                "week_number": item.get("week_number", 0),
+                "date_label": item.get("date_label", "Fecha por definir"),
+            }
+    return latest
+
+
 def planning_examples(buffer, subject, clei, limit=5):
     """Obtiene ejemplos previos de objetivo y actividad para materia/CLEI."""
     from openpyxl import load_workbook
@@ -2064,7 +2150,11 @@ def asistencia():
 def materiales():
     page_data = {
         "materials": [],
-        "guide_cleis": {},
+        "guide_options": {},
+        "guide_subjects": ["Matemáticas", "Ciencias Naturales"],
+        "guide_cleis": ["CLEI 2", "CLEI 3", "CLEI 4", "CLEI 5-6"],
+        "guide_subject": "",
+        "guide_clei": "",
         "generated_guide": None,
         "guide_error": None,
         "contexts": ["Alta", "Multigrado", "Técnico Laboral", "Comunidad Terapéutica"],
@@ -2082,15 +2172,16 @@ def materiales():
         classes = read_planning_rows(buffer)
         try:
             planning_buffer, _ = download_planning_from_drive()
-            guide_cleis = latest_planned_topic_by_clei(read_additional_planning_rows(planning_buffer))
+            guide_options = latest_planned_topics_by_subject_clei(read_additional_planning_rows(planning_buffer))
         except Exception:
             app.logger.exception("No se pudo leer la planeación para preparar las guías")
-            guide_cleis = {}
-        guide_clei = request.args.get("generar_guia", "").strip()
-        if guide_clei:
-            selected = guide_cleis.get(guide_clei)
+            guide_options = {}
+        guide_subject = request.args.get("materia_guia", "").strip()
+        guide_clei = request.args.get("clei_guia", "").strip()
+        if guide_subject and guide_clei:
+            selected = guide_options.get(guide_subject, {}).get(guide_clei)
             if not selected:
-                page_data["guide_error"] = f"No hay un tema planeado vigente para {guide_clei}."
+                page_data["guide_error"] = f"No hay un tema planeado vigente para {guide_subject} / {guide_clei}."
             else:
                 try:
                     generated_guide = generate_self_study_guide(
@@ -2127,7 +2218,9 @@ def materiales():
         ]
         page_data.update({
             "materials": materials,
-            "guide_cleis": guide_cleis,
+            "guide_options": guide_options,
+            "guide_subject": guide_subject,
+            "guide_clei": guide_clei,
             "context_filter": context_filter,
             "group_filter": group_filter,
             "search": search,
@@ -2141,11 +2234,33 @@ def materiales():
         return render_template("materiales.html", current_user=session.get("user"), **page_data)
 
 
+@app.route("/materiales/guia-autodidacta/pdf", methods=["POST"])
+@login_required
+def descargar_guia_autodidacta_pdf():
+    """Descarga en PDF la guía que el usuario acaba de previsualizar."""
+    guide = {}
+    try:
+        guide = json.loads(request.form.get("guide_json", "{}"))
+        if not guide.get("title") or not guide.get("objective"):
+            raise ValueError("La guía no tiene la estructura mínima para exportarse.")
+        pdf_buffer = build_self_study_guide_pdf(guide)
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", clean_text(guide.get("title", "guia-autodidacta"))).strip("-").lower() or "guia-autodidacta"
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{safe_name}.pdf",
+        )
+    except Exception as exc:
+        app.logger.exception("No se pudo crear el PDF de la guía")
+        return redirect(url_for("materiales", materia_guia=guide.get("subject", ""), clei_guia=guide.get("clei", ""), pdf_error=str(exc)))
+
+
 @app.route("/materiales/guia-autodidacta/<path:clei>")
 @login_required
 def guia_autodidacta(clei):
     """Compatibilidad: redirige la guía a la misma vista de Materiales."""
-    return redirect(url_for("materiales", generar_guia=clei))
+    return redirect(url_for("materiales", clei_guia=clei))
 
 
 @app.route("/otras-materias")
