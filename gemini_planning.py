@@ -293,6 +293,33 @@ def _validate_self_study_guide(payload):
             cleaned = cleaned[:limit]
         return cleaned
 
+    def illustrations():
+        values = payload.get("illustrations", [])
+        if not isinstance(values, list):
+            return []
+        result = []
+        allowed_types = {"concept", "process", "application"}
+        for value in values[:3]:
+            if not isinstance(value, dict):
+                continue
+            title = " ".join(str(value.get("title", "")).split()).strip()
+            explanation = " ".join(str(value.get("explanation", "")).split()).strip()
+            visual_subject = " ".join(str(value.get("visual_subject", "")).split()).strip()
+            labels = value.get("labels", [])
+            if not title or not explanation or not isinstance(labels, list):
+                continue
+            labels = [" ".join(str(label).split()).strip() for label in labels if str(label).strip()][:5]
+            if len(labels) < 2:
+                continue
+            result.append({
+                "title": title[:180],
+                "explanation": explanation[:700],
+                "type": value.get("type") if value.get("type") in allowed_types else "concept",
+                "labels": labels,
+                "visual_subject": visual_subject[:100] or "concepto principal",
+            })
+        return result
+
     return {
         "title": text("title", limit=300),
         "introduction": text("introduction", limit=2500),
@@ -308,6 +335,7 @@ def _validate_self_study_guide(payload):
         "common_mistakes": text_list("common_mistakes", minimum=3, limit=8),
         "study_plan": text_list("study_plan", minimum=4, limit=8),
         "closing": text("closing", limit=1200),
+        "illustrations": illustrations(),
     }
 
 
@@ -355,6 +383,7 @@ Devuelve exclusivamente un objeto JSON válido con estos campos:
 - common_mistakes: lista de mínimo 3 errores frecuentes y cómo corregirlos.
 - study_plan: lista de mínimo 4 pasos para organizar el trabajo autónomo.
 - closing: recomendaciones finales para revisar y demostrar lo aprendido.
+- illustrations: lista de exactamente 3 propuestas visuales didácticas. Cada objeto debe tener title, explanation, visual_subject, type (concept, process o application) y labels (entre 2 y 5 etiquetas cortas). visual_subject debe nombrar el objeto concreto que se debe dibujar: por ejemplo "célula animal", "billete y monedas", "árbol de roble", "ecosistema", "triángulo" o "fracción circular". No uses dibujos abstractos si el tema permite representar un objeto real.
 
 Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
 
