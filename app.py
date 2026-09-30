@@ -98,11 +98,21 @@ def detect_visual_subject(theme, subject, candidate=""):
 
 
 def enrich_guide_illustrations(guide):
-    """Combina las propuestas de Gemini con un render SVG determinista y accesible."""
+    """Combina las propuestas de Gemini con ilustraciones educativas reales del banco visual."""
     illustrations = guide.get("illustrations") or default_guide_illustrations(guide)
     if len(illustrations) < 3:
         illustrations = (illustrations + default_guide_illustrations(guide))[:3]
     result = []
+    image_by_subject = {
+        "cell": "img/guide-cell.png",
+        "money": "img/guide-money.png",
+        "fraction": "img/guide-fraction.png",
+        "equation": "img/guide-equation.png",
+        "oak": "img/guide-oak.png",
+        "ecosystem": "img/guide-ecosystem.png",
+        "triangle": "img/guide-triangle.png",
+        "water": "img/guide-water.png",
+    }
     for item in illustrations[:3]:
         labels = [clean_text(label)[:34] for label in item.get("labels", []) if clean_text(label)]
         while len(labels) < 2:
@@ -114,6 +124,8 @@ def enrich_guide_illustrations(guide):
             "visual_subject": detect_visual_subject(guide.get("theme", ""), guide.get("subject", ""), item.get("visual_subject", "")),
             "labels": labels[:5],
         })
+    for item in result:
+        item["image_asset"] = image_by_subject.get(item["visual_subject"], "img/guide-concept.png")
     guide["illustrations"] = result
     return guide
 
@@ -154,7 +166,7 @@ def build_self_study_guide_pdf(guide):
     from reportlab.lib.units import cm
     from reportlab.lib import colors
     from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
-    from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+    from reportlab.platypus import Image, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
 
     output = io.BytesIO()
     document = SimpleDocTemplate(
@@ -187,6 +199,11 @@ def build_self_study_guide_pdf(guide):
         story.append(Spacer(1, 4))
 
     def add_illustration(illustration):
+        image_path = os.path.join(app.root_path, "static", illustration.get("image_asset", ""))
+        if os.path.isfile(image_path):
+            image = Image(image_path, width=17.2 * cm, height=12.9 * cm)
+            story.extend([image, Paragraph(clean_text(illustration.get("explanation", "")), styles["GuideBody"]), Spacer(1, 4)])
+            return
         drawing = Drawing(520, 150)
         kind = illustration.get("type", "concept")
         palette = {"concept": ("#dff5f0", "#078f91"), "process": ("#e7f0f8", "#0c526b"), "application": ("#fff3d5", "#b17b18")}
@@ -2798,3 +2815,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
