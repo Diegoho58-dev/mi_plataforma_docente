@@ -61,6 +61,7 @@
   <article class="guide-section"><h3>Presentación</h3><p>{{ generated_guide.introduction }}</p></article>
   <article class="guide-section"><h3>Objetivo de aprendizaje</h3><p>{{ generated_guide.objective }}</p></article>
   <article class="guide-section"><h3>Explicación del tema</h3><p>{{ generated_guide.explanation }}</p></article>
+  <article class="guide-section guide-visual-section"><h3>Aprende con dibujos</h3><p class="guide-visual-intro">Estas representaciones ayudan a relacionar el concepto, el procedimiento y su aplicación.</p><div class="guide-illustration-grid">{% for illustration in generated_guide.illustrations %}<figure class="guide-illustration"><div>{{ guide_illustration_svg(illustration)|safe }}</div><figcaption><strong>{{ illustration.title }}</strong><span>{{ illustration.explanation }}</span></figcaption></figure>{% endfor %}</div></article>
   <article class="guide-section"><h3>Conceptos clave</h3><ol>{% for item in generated_guide.key_concepts %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Ejemplos desarrollados</h3><ol>{% for item in generated_guide.worked_examples %}<li>{{ item }}</li>{% endfor %}</ol></article>
   <article class="guide-section"><h3>Materiales necesarios</h3><ul>{% for item in generated_guide.materials %}<li>{{ item }}</li>{% endfor %}</ul></article>
