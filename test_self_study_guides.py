@@ -6,7 +6,7 @@ os.environ.setdefault("ADMIN_USER", "admin")
 os.environ.setdefault("ADMIN_PASSWORD", "password")
 os.environ.setdefault("GOOGLE_DRIVE_ENABLED", "false")
 
-from app import app, enrich_guide_illustrations, latest_planned_topics_by_subject_clei
+from app import app, build_self_study_guide_pdf, enrich_guide_illustrations, latest_planned_topics_by_subject_clei
 from gemini_planning import _validate_self_study_guide
 
 planning = [
@@ -20,36 +20,43 @@ assert latest["Matemáticas"]["CLEI 2"]["theme"] == "Ecuaciones"
 assert latest["Ciencias Naturales"]["CLEI 2"]["theme"] == "Ecosistemas"
 assert "CLEI 1" not in latest["Matemáticas"]
 
-guide = _validate_self_study_guide({
-    "title": "Guía de ecuaciones",
-    "introduction": "Introducción",
-    "objective": "Resolver ecuaciones sencillas.",
-    "explanation": "Explicación amplia del tema.",
-    "key_concepts": ["Concepto 1", "Concepto 2", "Concepto 3", "Concepto 4"],
-    "worked_examples": ["Ejemplo 1", "Ejemplo 2", "Ejemplo 3"],
-    "activities": ["Actividad 1", "Actividad 2", "Actividad 3", "Actividad 4", "Actividad 5", "Actividad 6"],
+for theme, asset in [
+    ("La célula animal", "guide-cell.png"),
+    ("Problemas de dinero", "guide-money.png"),
+    ("Termorregulación humana", "guide-thermoregulation.png"),
+    ("Osmorregulación en agua dulce y salada", "guide-osmoregulation.png"),
+    ("Sistema urinario humano", "guide-urinary-system.png"),
+]:
+    guide_data = {"theme": theme, "subject": "Ciencias Naturales", "key_concepts": ["Concepto 1", "Concepto 2"]}
+    enrich_guide_illustrations(guide_data)
+    assert all(item["image_asset"].endswith(asset) for item in guide_data["illustrations"])
+    assert all(os.path.isfile(os.path.join("static", item["image_asset"])) for item in guide_data["illustrations"])
+
+validated = _validate_self_study_guide({
+    "title": "Guía de ecuaciones", "introduction": "Introducción", "objective": "Resolver ecuaciones sencillas.",
+    "explanation": "Explicación amplia del tema.", "key_concepts": ["Concepto 1", "Concepto 2", "Concepto 3", "Concepto 4"],
+    "worked_examples": ["Ejemplo 1", "Ejemplo 2", "Ejemplo 3"], "activities": ["Actividad 1", "Actividad 2", "Actividad 3", "Actividad 4", "Actividad 5", "Actividad 6"],
     "reflection_questions": ["Pregunta 1", "Pregunta 2", "Pregunta 3", "Pregunta 4", "Pregunta 5"],
     "evaluation": ["Criterio 1", "Criterio 2", "Criterio 3", "Criterio 4", "Criterio 5"],
-    "answer_key": ["Respuesta 1", "Respuesta 2", "Respuesta 3", "Respuesta 4", "Respuesta 5"],
-    "materials": ["Cuaderno"],
-    "common_mistakes": ["Error 1", "Error 2", "Error 3"],
-    "study_plan": ["Paso 1", "Paso 2", "Paso 3", "Paso 4"],
-    "closing": "Cierre",
+    "answer_key": ["Respuesta 1", "Respuesta 2", "Respuesta 3", "Respuesta 4", "Respuesta 5"], "materials": ["Cuaderno"],
+    "common_mistakes": ["Error 1", "Error 2", "Error 3"], "study_plan": ["Paso 1", "Paso 2", "Paso 3", "Paso 4"], "closing": "Cierre",
 })
-assert guide["title"] == "Guía de ecuaciones"
-assert len(guide["activities"]) == 6
-enrich_guide_illustrations(guide)
-assert len(guide["illustrations"]) == 3
-assert all(item["labels"] for item in guide["illustrations"])
+assert validated["title"] == "Guía de ecuaciones"
+
+full = {**validated, "subject": "Ciencias Naturales", "clei": "CLEI 3", "theme": "Termorregulación humana", "week": "Semana 4", "date_label": "Semana actual"}
+enrich_guide_illustrations(full)
+pdf = build_self_study_guide_pdf(full)
+assert pdf.read(4) == b"%PDF"
 
 app.testing = True
 app.config["TESTING"] = True
 with app.test_client() as client:
     with client.session_transaction() as session:
         session["user"] = "admin"
-    response = client.post("/materiales/guia-autodidacta/pdf", data={"guide_json": __import__("json").dumps({**guide, "subject": "Matemáticas", "clei": "CLEI 2", "theme": "Ecuaciones", "week": "Semana 4", "date_label": "16 al 20 de febrero"})})
+    response = client.post("/materiales/guia-autodidacta/pdf", data={"guide_json": __import__("json").dumps(full)})
     assert response.status_code == 200
     assert response.mimetype == "application/pdf"
     assert response.data.startswith(b"%PDF")
 
-print("OK: selección por materia/CLEI, guía extensa, ilustraciones y PDF funcionan.")
+print("OK: las guías usan PNG temáticos reales y no contienen fallback SVG abstracto.")
+
