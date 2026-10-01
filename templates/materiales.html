@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Materiales | Panel Docente{% endblock %}
+{% block content %}
+<section class="welcome-section">
+  <p class="eyebrow">RECURSOS DE CLASE</p>
+  <h1>Materiales y soportes de clase</h1>
+  <p class="subtitle">Genera guías autodidactas desde la Planeación y consulta los soportes de evidencia registrados en Drive.</p>
+</section>
+
+{% if data_error %}<div class="data-alert" role="alert">{{ data_error }}<small>Verifica la conexión y los permisos de los archivos en Google Drive.</small></div>{% endif %}
+{% if guide_error %}<div class="data-alert" role="alert">{{ guide_error }}<small>Revisa que exista un tema vigente en Planeación y que Gemini esté configurado.</small></div>{% endif %}
+
+<section class="panel" aria-labelledby="guides-title">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">APOYO AUTODIDACTA</p>
+      <h2 id="guides-title">Generar guías autodidactas</h2>
+      <p class="panel-help">Selecciona una materia y un CLEI. El tema se toma de la última semana registrada en Planeación.</p>
+    </div>
+  </div>
+  <form class="materials-toolbar guide-selector" method="get" action="{{ url_for('materiales') }}">
+    <div>
+      <label for="materia-guia">Materia</label>
+      <select id="materia-guia" name="materia_guia" required>
+        <option value="">Selecciona una materia</option>
+        {% for subject in guide_subjects %}
+          <option value="{{ subject }}" {% if subject == guide_subject %}selected{% endif %}>{{ subject }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="clei-guia">CLEI</label>
+      <select id="clei-guia" name="clei_guia" required>
+        <option value="">Selecciona un CLEI</option>
+        {% for clei in guide_cleis %}
+          <option value="{{ clei }}" {% if clei == guide_clei %}selected{% endif %}>{{ clei }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="primary-button" type="submit">Generar guía</button>
+  </form>
+  {% if guide_subject and guide_clei and guide_options.get(guide_subject, {}).get(guide_clei) %}
+    {% set selected_topic = guide_options.get(guide_subject, {}).get(guide_clei) %}
+    <p class="panel-help"><strong>Tema que se utilizará:</strong> {{ selected_topic.theme }} · {{ selected_topic.week }}</p>
+  {% endif %}
+</section>
+
+{% if generated_guide %}
+<section class="panel guide-document" aria-labelledby="generated-guide-title">
+  <div class="guide-header">
+    <div>
+      <p class="eyebrow">{{ generated_guide.subject }} · {{ generated_guide.clei }}</p>
+      <h2 id="generated-guide-title">{{ generated_guide.title }}</h2>
+      <p class="material-source">Tema de Planeación: <strong>{{ generated_guide.theme }}</strong><br>{{ generated_guide.week }} · {{ generated_guide.date_label }}</p>
+    </div>
+    <form method="post" action="{{ url_for('descargar_guia_autodidacta_pdf') }}">
+      <textarea name="guide_json" hidden>{{ generated_guide|tojson }}</textarea>
+      <button class="primary-button" type="submit">Descargar guía en PDF</button>
+    </form>
+  </div>
+  <article class="guide-section"><h3>Presentación</h3><p>{{ generated_guide.introduction }}</p></article>
+  <article class="guide-section"><h3>Objetivo de aprendizaje</h3><p>{{ generated_guide.objective }}</p></article>
+  <article class="guide-section"><h3>Explicación del tema</h3><p>{{ generated_guide.explanation }}</p></article>
+  <article class="guide-section"><h3>Conceptos clave</h3><ol>{% for item in generated_guide.key_concepts %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Ejemplos desarrollados</h3><ol>{% for item in generated_guide.worked_examples %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Materiales necesarios</h3><ul>{% for item in generated_guide.materials %}<li>{{ item }}</li>{% endfor %}</ul></article>
+  <article class="guide-section"><h3>Actividades</h3><ol>{% for item in generated_guide.activities %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Preguntas de reflexión</h3><ol>{% for item in generated_guide.reflection_questions %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Autoevaluación</h3><ol>{% for item in generated_guide.evaluation %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section guide-answer-key"><h3>Respuestas orientadoras</h3><ol>{% for item in generated_guide.answer_key %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Errores frecuentes y cómo corregirlos</h3><ul>{% for item in generated_guide.common_mistakes %}<li>{{ item }}</li>{% endfor %}</ul></article>
+  <article class="guide-section"><h3>Plan de estudio sugerido</h3><ol>{% for item in generated_guide.study_plan %}<li>{{ item }}</li>{% endfor %}</ol></article>
+  <article class="guide-section"><h3>Cierre</h3><p>{{ generated_guide.closing }}</p></article>
+</section>
+{% endif %}
+
+<section aria-labelledby="supports-title">
+  <h2 id="supports-title">Soportes de clase</h2>
+  <p class="panel-help">Enlaces de Drive que sirven como evidencia o soporte de cada clase registrada.</p>
+  <form class="materials-toolbar" method="get" action="{{ url_for('materiales') }}">
+    <div><label for="buscar">Buscar</label><input id="buscar" name="buscar" value="{{ search }}" placeholder="Tema, asignatura o grupo"></div>
+    <div><label for="contexto">Contexto</label><select id="contexto" name="contexto"><option value="">Todos los contextos</option>{% for context in contexts %}<option value="{{ context }}" {% if context == context_filter %}selected{% endif %}>{{ context }}</option>{% endfor %}</select></div>
+    <div><label for="grupo">Grupo</label><select id="grupo" name="grupo"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group }}" {% if group == group_filter %}selected{% endif %}>{{ group }}</option>{% endfor %}</select></div>
+    <button class="primary-button" type="submit">Filtrar</button>
+  </form>
+  <div class="materials-grid">
+    {% for item in materials %}
+      <article class="material-card">
+        <div class="material-meta"><span class="tag {{ item.context_class }}">{{ item.context }}</span><span class="material-date">{{ item.date_label }}</span></div>
+        <h2>{{ item.subject }} · {{ item.group }}</h2>
+        <p><strong>Tema:</strong> {{ item.theme }}</p>
+        {% if item.observations %}<p><strong>Observaciones:</strong> {{ item.observations }}</p>{% endif %}
+        {% if item.cycle %}<p class="material-source">Ciclo {{ item.cycle }} · Semana {{ item.cycle_week }} de 3 · Hoja {{ item.source }}</p>{% endif %}
+        <a class="material-button" href="{{ item.drive_link }}" target="_blank" rel="noopener noreferrer">Abrir soporte de clase ↗</a>
+      </article>
+    {% else %}
+      <div class="panel empty-state material-empty">No hay soportes de clase con enlace de Drive para estos filtros.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
