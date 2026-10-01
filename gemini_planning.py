@@ -335,7 +335,6 @@ def _validate_self_study_guide(payload):
         "common_mistakes": text_list("common_mistakes", minimum=3, limit=8),
         "study_plan": text_list("study_plan", minimum=4, limit=8),
         "closing": text("closing", limit=1200),
-        "illustrations": illustrations(),
     }
 
 
@@ -383,8 +382,6 @@ Devuelve exclusivamente un objeto JSON válido con estos campos:
 - common_mistakes: lista de mínimo 3 errores frecuentes y cómo corregirlos.
 - study_plan: lista de mínimo 4 pasos para organizar el trabajo autónomo.
 - closing: recomendaciones finales para revisar y demostrar lo aprendido.
-- illustrations: lista de exactamente 3 propuestas visuales didácticas. Cada objeto debe tener title, explanation, visual_subject, type (concept, process o application) y labels (entre 2 y 5 etiquetas cortas). visual_subject debe nombrar el objeto concreto que se debe dibujar: por ejemplo "célula animal", "billete y monedas", "árbol de roble", "ecosistema", "triángulo" o "fracción circular". No uses dibujos abstractos si el tema permite representar un objeto real.
-
 Usa español claro. No incluyas markdown, HTML ni campos adicionales."""
 
     body = {
