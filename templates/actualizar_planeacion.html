@@ -52,11 +52,11 @@
               {% set last_item = last_planning.get((option.value, clei)) %}
               {% if last_item %}
               <div class="last-planning-summary">
-                <strong>Última clase registrada</strong>
+                <strong>Último tema registrado en Planeación</strong>
                 <span><b>Tema:</b> {{ last_item.theme }}</span>
-                <span><b>Fecha:</b> {{ last_item.date_label }}</span>
-                <span><b>Estado:</b> {{ last_item.execution_status }}</span>
-                <small>{{ last_item.week }} · {{ last_item.status }}</small>
+                <span><b>Semana:</b> {{ last_item.week }}{% if last_item.date_label %} · {{ last_item.date_label }}{% endif %}</span>
+                <span><b>Estado registrado:</b> {{ last_item.status }}</span>
+                <small>{{ last_item.execution_status }}</small>
               </div>
               {% else %}
               <div class="last-planning-summary is-empty">No hay una clase anterior registrada para este CLEI.</div>
@@ -108,3 +108,4 @@
 {% endblock %}
 
 {% block scripts %}<script src="{{ url_for('static', filename='js/planning-update.js') }}" defer></script>{% endblock %}
+
