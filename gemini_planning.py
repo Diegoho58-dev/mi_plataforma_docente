@@ -44,7 +44,8 @@ Reglas obligatorias:
 - Relaciona directamente el objetivo y la articulación con el tema recibido.
 - Usa lenguaje claro, concreto y apropiado para jóvenes y adultos.
 - Mantén una redacción similar a los ejemplos, sin copiarlos literalmente.
-- La articulación debe describir acciones concretas del monitor.
+    - La articulación debe describir acciones concretas del monitor.
+    - Mantén el objetivo por debajo de 1800 caracteres y la articulación por debajo de 2200 caracteres.
 - No incluyas títulos, explicaciones, markdown ni campos adicionales.
 
 Ejemplos de redacción usados anteriormente:
@@ -57,36 +58,32 @@ Responde exclusivamente con un objeto JSON válido con esta estructura:
 }}"""
 
 
+def _limit_text(value, limit):
+    """Normaliza un texto largo sin convertir una propuesta válida en error."""
+    text = " ".join(str(value).split()).strip()
+    if len(text) <= limit:
+        return text
+    # Cortar en una oración completa mejora la legibilidad en la hoja de Drive.
+    cut = text[:limit]
+    boundary = max(cut.rfind(". "), cut.rfind("; "), cut.rfind(".\n"))
+    if boundary >= int(limit * 0.65):
+        cut = cut[:boundary + 1]
+    return cut.rstrip() + "…"
+
+
 def _validate_proposal(payload):
     if not isinstance(payload, dict):
         raise GeminiPlanningError(
             "Gemini no devolvió un objeto JSON."
         )
 
-    objective = " ".join(
-        str(payload.get("objetivo", "")).split()
-    ).strip()
-
-    articulation = " ".join(
-        str(payload.get("articulacion_monitor", "")).split()
-    ).strip()
+    objective = _limit_text(payload.get("objetivo", ""), 1800)
+    articulation = _limit_text(payload.get("articulacion_monitor", ""), 2200)
 
     if not objective or not articulation:
         raise GeminiPlanningError(
             "La propuesta de Gemini no contiene "
             "objetivo y articulación completos."
-        )
-
-    if len(objective) > 1200:
-        raise GeminiPlanningError(
-            "El objetivo generado por Gemini excede "
-            "la longitud permitida."
-        )
-
-    if len(articulation) > 1600:
-        raise GeminiPlanningError(
-            "La articulación generada por Gemini excede "
-            "la longitud permitida."
         )
 
     return {
