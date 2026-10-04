@@ -6,7 +6,7 @@
 <section class="welcome-section">
   <p class="eyebrow">PLANEACIÓN ACADÉMICA</p>
   <h1>Organizar la próxima semana</h1>
-  <p class="subtitle">Selecciona solo los CLEI que realmente necesitan un tema nuevo. Los CLEI que dejes sin seleccionar heredarán el contenido de la semana anterior.</p>
+  <p class="subtitle">Selecciona solo los CLEI de Alta que realmente necesitan un tema nuevo. Multigrado no participa en esta actualización y CLEI 1 no se muestra.</p>
 </section>
 
 {% if not only_friday %}
@@ -24,7 +24,7 @@
     <span class="status-pill {{ 'status-ready' if (is_friday or not only_friday) else 'status-muted' }}">{{ 'Disponible para probar' if not only_friday else ('Disponible hoy' if is_friday else 'Solo viernes') }}</span>
   </div>
 
-  <div class="data-alert alert-info planning-rule"><strong>Regla automática:</strong> materia seleccionada + CLEI marcado = usa el tema elegido de la malla. CLEI no marcado = duplica tema, observaciones, objetivo, actividad y estado de la semana anterior.</div>
+  <div class="data-alert alert-info planning-rule"><strong>Regla automática:</strong> materia de Alta + CLEI marcado = usa el tema elegido de la malla. CLEI no marcado = duplica tema, observaciones, objetivo, actividad y estado de la semana anterior. El resumen superior toma la última clase registrada de Alta para ese mismo CLEI.</div>
 
   <form method="post" class="planning-selection-form" data-selection-form>
     <div class="planning-subjects">
@@ -52,14 +52,14 @@
               {% set last_item = last_planning.get((option.value, clei)) %}
               {% if last_item %}
               <div class="last-planning-summary">
-                <strong>Último tema registrado en Planeación</strong>
+                <strong>Última clase registrada en Alta</strong>
                 <span><b>Tema:</b> {{ last_item.theme }}</span>
                 <span><b>Semana:</b> {{ last_item.week }}{% if last_item.date_label %} · {{ last_item.date_label }}{% endif %}</span>
                 <span><b>Estado registrado:</b> {{ last_item.status }}</span>
                 <small>{{ last_item.execution_status }}</small>
               </div>
               {% else %}
-              <div class="last-planning-summary is-empty">No hay una clase anterior registrada para este CLEI.</div>
+              <div class="last-planning-summary is-empty">No hay una clase anterior registrada para este CLEI en Alta.</div>
               {% endif %}
               <label for="tema-{{ subject_key }}-{{ clei_key }}">Tema de la malla</label>
               {% set topic_pages = pages_by_subject.get(option.value, {}).get(clei, {}) %}
@@ -108,4 +108,3 @@
 {% endblock %}
 
 {% block scripts %}<script src="{{ url_for('static', filename='js/planning-update.js') }}" defer></script>{% endblock %}
-
