@@ -1213,9 +1213,14 @@ def latest_planning_by_subject_group(planning):
             week_number = int(item.get("week_number") or 0)
         except (TypeError, ValueError):
             week_number = 0
+        if not week_number:
+            week_match = re.search(r"semana\s*(\d+)", clean_text(item.get("week", "")), re.IGNORECASE)
+            week_number = int(week_match.group(1)) if week_match else 0
+        class_date = item.get("date")
+        date_order = class_date.toordinal() if hasattr(class_date, "toordinal") else 0
         display_clei = menu_clei.get(clei, clei)
         key = (display_subject, display_clei)
-        candidate_order = (week_number, clean_text(item.get("week", "")), clean_text(item.get("date_label", "")))
+        candidate_order = (week_number, date_order, clean_text(item.get("week", "")), clean_text(item.get("date_label", "")))
         previous = latest.get(key)
         if previous is not None and candidate_order <= previous["_order"]:
             continue
@@ -1659,11 +1664,14 @@ def grupos():
 def actualizar_planeacion():
     options = [
         {"value": "Matemáticas", "label": "Matemáticas"},
-        {"value": "Biología", "label": "Biología"},
+        {"value": "Biología", "label": "Ciencias Naturales"},
     ]
     today=colombia_today()
     friday=today.weekday()==4
-    cleis = ["CLEI I", "CLEI II", "CLEI III", "CLEI IV", "CLEI 5-6"]
+    # CLEI 1 no participa en el flujo de actualización y no debe llegar a la
+    # plantilla. La fila CLEI I se conserva únicamente al escribir Drive,
+    # donde se marca completa como N/A.
+    cleis = ["CLEI II", "CLEI III", "CLEI IV", "CLEI 5-6"]
     page={"options": options, "cleis": cleis, "topics_by_subject": {item["value"]: {clei: [] for clei in cleis} for item in options}, "pages_by_subject": {item["value"]: {clei: {} for clei in cleis} for item in options}, "last_planning": {}, "selected": [], "selected_cleis": {}, "selected_themes": {}, "selected_pages": {}, "selected_objectives": {}, "selected_articulations": {}, "proposals": {}, "created": [], "already_exists": [], "error": None, "message": None, "is_friday": friday, "only_friday": PLANNING_ONLY_FRIDAY}
     try:
         curriculum_buffer = None
@@ -1693,9 +1701,19 @@ def actualizar_planeacion():
             # El archivo base solo contiene estudiantes/asistencia y puede tener
             # fechas o grupos que no corresponden a la actualización semanal.
             planning_source_buffer, _ = download_planning_from_drive()
-            page["last_planning"] = latest_planning_by_subject_group(
-                read_additional_planning_rows(planning_source_buffer)
-            )
+            planning_rows = read_additional_planning_rows(planning_source_buffer)
+            # Algunas clases ya dictadas solo existen en el archivo base. Se
+            # agregan únicamente las filas clasificadas como Alta; Multigrado
+            # nunca participa en este resumen.
+            try:
+                base_buffer, _ = download_excel_from_drive()
+                planning_rows.extend(
+                    item for item in read_planning_rows(base_buffer)
+                    if item.get("context") == "Alta" and not item.get("no_class")
+                )
+            except Exception:
+                app.logger.warning("No se pudo complementar el último tema con el archivo base", exc_info=True)
+            page["last_planning"] = latest_planning_by_subject_group(planning_rows)
         if request.method == "POST":
             selected = planning_sheet_names(request.form.getlist("materia"))
             page["selected"] = selected
@@ -2754,3 +2772,4 @@ def planeacion():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
