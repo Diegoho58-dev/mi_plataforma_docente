@@ -446,7 +446,40 @@ def _validate_followup_analysis(payload):
             "actions": clean_list(data.get("actions"), f"{name}.actions", 3),
         }
 
+    def plan_list(value, field, required_keys, minimum=2, limit=12):
+        if not isinstance(value, list):
+            raise GeminiPlanningError(f"El campo {field} no es una lista.")
+        result = []
+        for item in value[:limit]:
+            if not isinstance(item, dict):
+                continue
+            cleaned = {key: " ".join(str(item.get(key, "") or "").split()).strip() for key in ("student", "priority", "evidence", "action", "verify", "week", "focus", "actions")}
+            if all(cleaned.get(key) for key in required_keys):
+                result.append(cleaned)
+        if len(result) < minimum:
+            raise GeminiPlanningError(f"El análisis no contiene suficientes elementos en {field}.")
+        return result
+
+    executive = payload.get("executive_summary")
+    observations = payload.get("observation_analysis")
+    if not isinstance(executive, dict) or not isinstance(observations, dict):
+        raise GeminiPlanningError("Faltan las secciones ejecutiva u observaciones del análisis.")
+
     return {
+        "executive_summary": {
+            "title": clean_text(executive.get("title"), "executive_summary.title", 300),
+            "summary": clean_text(executive.get("summary"), "executive_summary.summary", 3000),
+            "key_decisions": clean_list(executive.get("key_decisions"), "executive_summary.key_decisions", 3, 6),
+        },
+        "observation_analysis": {
+            "title": clean_text(observations.get("title"), "observation_analysis.title", 300),
+            "summary": clean_text(observations.get("summary"), "observation_analysis.summary", 3000),
+            "patterns": clean_list(observations.get("patterns"), "observation_analysis.patterns", 3, 10),
+            "evidence": clean_list(observations.get("evidence"), "observation_analysis.evidence", 3, 10),
+            "cautions": clean_list(observations.get("cautions"), "observation_analysis.cautions", 2, 6),
+        },
+        "priority_plan": plan_list(payload.get("priority_plan"), "priority_plan", ("student", "priority", "evidence", "action", "verify"), 1, 12),
+        "weekly_plan": plan_list(payload.get("weekly_plan"), "weekly_plan", ("week", "focus", "actions", "evidence"), 2, 6),
         "teacher_overview": section("teacher_overview"),
         "subjects_analysis": section("subjects_analysis"),
         "padrino_analysis": section("padrino_analysis"),
@@ -463,27 +496,35 @@ def generate_followup_analysis(summary, timeout=60):
     compact_summary = json.dumps(summary, ensure_ascii=False, separators=(",", ":"))
     prompt = f"""Actúa como coordinador pedagógico experto en educación flexible para jóvenes y adultos en Colombia.
 
-Analiza el siguiente consolidado real de registros de Google Drive. Incluye Matemáticas, Ciencias Naturales y las otras materias registradas por docentes. El tercer apartado debe concentrarse exclusivamente en los grupos apadrinados CLEI 3B y CLEI 5-6.
+Analiza el siguiente consolidado real de registros de Google Drive. Incluye Matemáticas, Ciencias Naturales y las otras materias registradas por docentes. Usa las observaciones nominales como evidencia pedagógica central: relaciona cada observación con estudiante, materia, fecha, fuente, asistencia y desempeño cuando exista. El tercer apartado debe concentrarse exclusivamente en los grupos apadrinados CLEI 3B y CLEI 5-6.
 
 DATOS CONSOLIDADOS:
 {compact_summary}
 
-Entrega un análisis profesional, prudente y accionable. Diferencia hechos observados de posibles situaciones. No diagnostiques problemas personales ni inventes causas. Cuando propongas una situación posible, usa lenguaje como "podría estar relacionado con" y recomienda verificarla con observación, conversación o seguimiento.
+Entrega un análisis profesional, prudente y accionable. Diferencia hechos observados de posibles situaciones. No diagnostiques problemas personales ni inventes causas. Cuando propongas una situación posible, usa lenguaje como "podría estar relacionado con" y recomienda verificarla con observación, conversación o seguimiento. No repitas frases genéricas: cada decisión debe apoyarse en un dato, una observación o una comparación real del consolidado.
 
 Devuelve exclusivamente JSON válido con esta estructura exacta:
 {{
+  "executive_summary": {{"title":"...","summary":"...","key_decisions":["mínimo 3 decisiones concretas"]}},
+  "observation_analysis": {{"title":"...","summary":"...","patterns":["mínimo 3 patrones"],"evidence":["mínimo 3 evidencias textuales o estadísticas"],"cautions":["mínimo 2 precauciones"]}},
+  "priority_plan": [{{"student":"...","priority":"alta/media/baja","evidence":"...","action":"...","verify":"..."}}],
+  "weekly_plan": [{{"week":"Semana 1","focus":"...","actions":"...","evidence":"..."}}],
   "teacher_overview": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
   "subjects_analysis": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
   "padrino_analysis": {{"title":"...","summary":"...","findings":["mínimo 3"],"possible_situations":["mínimo 2"],"actions":["mínimo 3"]}},
   "limitations":["mínimo 2 limitaciones o verificaciones necesarias"]
 }}
 
+La sección ejecutiva debe responder: qué está ocurriendo, qué requiere atención primero y qué debe hacer el docente esta semana.
+La sección de observaciones debe identificar patrones recurrentes, temas de las observaciones, coincidencias con faltas o bajo desempeño, evidencia textual resumida sin exagerarla y precauciones de interpretación.
+El plan de prioridades debe incluir los estudiantes que aparecen en el consolidado de prioridades; para cada uno señala evidencia, acción concreta y cómo verificar el resultado. No inventes estudiantes.
+El plan semanal debe proponer al menos dos semanas de acciones medibles, responsables implícitos y evidencias que se deben registrar.
 La primera sección debe interpretar todos los CLEI en el rol docente de Matemáticas y Ciencias Naturales.
 La segunda debe comparar las dos materias propias con las otras materias, señalando patrones de asistencia, cobertura, desempeño y coincidencias.
 La tercera debe analizar CLEI 3B y CLEI 5-6 con prioridad, incluyendo estudiantes, grupos, asistencia, ausencias, materias, fuentes, observaciones nominales y cualquier patrón repetido. Redacta un informe completo: situación de cada grupo, prioridades individuales, posibles explicaciones prudentes, acciones inmediatas, acciones de aula y un plan de verificación para las próximas semanas.
 Escribe en español profesional, con lenguaje claro para tomar decisiones pedagógicas."""
     body = {
-        "system_instruction": {"parts": [{"text": "Devuelve únicamente JSON válido y no inventes datos que no estén en el consolidado."}]},
+        "system_instruction": {"parts": [{"text": "Devuelve únicamente JSON válido y no inventes datos que no estén en el consolidado. Usa las observaciones como evidencia, pero no diagnostiques ni conviertas una hipótesis en hecho."}]},
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.25, "candidateCount": 1, "maxOutputTokens": 7000, "responseMimeType": "application/json"},
     }
