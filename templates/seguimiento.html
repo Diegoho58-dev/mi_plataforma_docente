@@ -25,6 +25,28 @@
 {% if external_analysis_error %}<div class="data-alert alert-info" role="status">{{ external_analysis_error }}</div>{% endif %}
 {% if followup_analysis_error %}<div class="data-alert alert-info" role="status">La IA no estuvo disponible; se presenta un informe estadístico de respaldo. {{ followup_analysis_error }}</div>{% endif %}
 
+{% set executive = followup_analysis.executive_summary %}
+<section class="followup-decision-board" aria-labelledby="executive-title">
+  <div class="followup-section-heading"><span class="section-number">00</span><div><p class="eyebrow">DECISIÓN DOCENTE</p><h2 id="executive-title">{{ executive.title }}</h2><p>{{ executive.summary }}</p></div></div>
+  <div class="followup-decision-grid">{% for item in executive.key_decisions %}<article><strong>{{ loop.index }}</strong><p>{{ item }}</p></article>{% endfor %}</div>
+</section>
+
+{% set observation_analysis = followup_analysis.observation_analysis %}
+<section class="followup-observations-section" aria-labelledby="observations-title">
+  <div class="followup-section-heading"><span class="section-number">O</span><div><p class="eyebrow">EVIDENCIA CUALITATIVA</p><h2 id="observations-title">{{ observation_analysis.title }}</h2><p>{{ observation_analysis.summary }}</p></div></div>
+  <div class="followup-observation-grid"><article><h3>Patrones de observación</h3><ul>{% for item in observation_analysis.patterns %}<li>{{ item }}</li>{% endfor %}</ul></article><article><h3>Evidencias encontradas</h3><ul>{% for item in observation_analysis.evidence %}<li>{{ item }}</li>{% endfor %}</ul></article><article class="possible-box"><h3>Qué se debe verificar</h3><ul>{% for item in observation_analysis.cautions %}<li>{{ item }}</li>{% endfor %}</ul></article></div>
+</section>
+
+<section class="followup-priority-section" aria-labelledby="priority-title">
+  <div class="followup-section-heading"><span class="section-number">P</span><div><p class="eyebrow">ACOMPAÑAMIENTO NOMINAL</p><h2 id="priority-title">Prioridades y acción recomendada</h2><p>La IA organiza los casos a partir de los registros; el docente valida antes de tomar decisiones.</p></div></div>
+  <div class="followup-priority-grid">{% for item in followup_analysis.priority_plan %}<article class="priority-plan-card"><div class="priority-plan-head"><strong>{{ item.student }}</strong><span class="priority-{{ item.priority|lower|replace('á','a') }}">{{ item.priority|upper }}</span></div><p><b>Evidencia:</b> {{ item.evidence }}</p><p><b>Acción:</b> {{ item.action }}</p><p><b>Verificar:</b> {{ item.verify }}</p></article>{% else %}<p class="empty-state">No hay prioridades nominales.</p>{% endfor %}</div>
+</section>
+
+<section class="followup-weekly-section" aria-labelledby="weekly-title">
+  <div class="followup-section-heading"><span class="section-number">S</span><div><p class="eyebrow">RUTA DE SEGUIMIENTO</p><h2 id="weekly-title">Plan de las próximas semanas</h2></div></div>
+  <div class="followup-weekly-grid">{% for item in followup_analysis.weekly_plan %}<article><span>{{ item.week }}</span><h3>{{ item.focus }}</h3><p><b>Acciones:</b> {{ item.actions }}</p><p><b>Evidencia:</b> {{ item.evidence }}</p></article>{% endfor %}</div>
+</section>
+
 <section class="followup-main-section section-one" aria-labelledby="section-one-title">
   <div class="followup-section-heading"><span class="section-number">01</span><div><p class="eyebrow">ROL DOCENTE · TODOS LOS CLEI</p><h2 id="section-one-title">Matemáticas y Ciencias Naturales en toda la institución</h2><p>La lectura general de la situación académica desde la perspectiva del profesor de las dos áreas.</p></div></div>
   {% set analysis = followup_analysis.teacher_overview %}
@@ -55,4 +77,3 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}<script id="analytics-data" type="application/json">{{ chart_data|safe }}</script><script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
-
