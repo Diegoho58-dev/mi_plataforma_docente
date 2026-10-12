@@ -255,6 +255,18 @@ def _header_text(rows, column, header_index):
     return " ".join(values)
 
 
+def _observation_columns(row, subject_start):
+    """Encuentra columnas de observación cercanas a una materia o globales."""
+    markers = ("observacion", "observaciones", "comentario", "seguimiento", "novedad", "compromiso")
+    candidates = []
+    for index, value in enumerate(row):
+        label = normalize(value)
+        if any(marker in label for marker in markers):
+            candidates.append(index)
+    nearby = [index for index in candidates if subject_start < index <= subject_start + 3]
+    return nearby[0] if nearby else (candidates[0] if candidates else None)
+
+
 def _is_data_row(row):
     if len(row) < 5:
         return False
@@ -292,7 +304,7 @@ def parse_workbook(buffer, source, default_year=2026):
                 _header_text(preview, start_column, header_index),
                 default_year,
             )
-            subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado")))
+            subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado"), _observation_columns(preview[header_index], start_column)))
         # Ya consumimos la vista previa; continuar desde la fila siguiente
         # mantiene constante el uso de memoria y recorre la hoja una sola vez.
         for raw_row in chain(preview[header_index + 1:], row_iterator):
@@ -302,7 +314,7 @@ def parse_workbook(buffer, source, default_year=2026):
             clei = clean(row[3] if len(row) > 3 else "")
             group = clean(row[4] if len(row) > 4 else "")
             key = student_clei(clei, group)
-            for subject, start_column, dates_by_clei, teacher in subject_specs:
+            for subject, start_column, dates_by_clei, teacher, observation_column in subject_specs:
                 if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                     continue
                 class_dates = dates_by_clei.get(key)
@@ -312,6 +324,7 @@ def parse_workbook(buffer, source, default_year=2026):
                     continue
                 attendance = clean(row[start_column] if start_column < len(row) else "")
                 grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
+                observation = clean(row[observation_column] if observation_column is not None and observation_column < len(row) else "")
                 # Las columnas PROM./ASIST. y los totales están después de las
                 # materias y nunca se recorren como una materia adicional.
                 for class_date in class_dates:
@@ -328,7 +341,7 @@ def parse_workbook(buffer, source, default_year=2026):
                         "identification": clean(row[2]),
                         "attendance": attendance,
                         "grade": grade,
-                        "observation": "",
+                        "observation": observation,
                         "class_date": class_date,
                         "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
                         "week_mismatch": False,
@@ -351,7 +364,7 @@ def parse_values(values, sheet_title, source, default_year=2026):
         if is_own_subject(subject):
             continue
         dates_by_clei = _subject_date_map(_header_text(rows, start_column, header_index), default_year)
-        subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado")))
+        subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado"), _observation_columns(rows[header_index], start_column)))
 
     records = []
     for row in rows[header_index + 1:]:
@@ -360,7 +373,7 @@ def parse_values(values, sheet_title, source, default_year=2026):
         clei = clean(row[3] if len(row) > 3 else "")
         group = clean(row[4] if len(row) > 4 else "")
         key = student_clei(clei, group)
-        for subject, start_column, dates_by_clei, teacher in subject_specs:
+        for subject, start_column, dates_by_clei, teacher, observation_column in subject_specs:
             if key == "ALF" or (key == "MULTIGRADO" and source == "Alta y CLEI normal"):
                 continue
             class_dates = dates_by_clei.get(key)
@@ -370,13 +383,14 @@ def parse_values(values, sheet_title, source, default_year=2026):
                 continue
             attendance = clean(row[start_column] if start_column < len(row) else "")
             grade = clean(row[start_column + 1] if start_column + 1 < len(row) else "")
+            observation = clean(row[observation_column] if observation_column is not None and observation_column < len(row) else "")
             for class_date in class_dates:
                 records.append({
                     "source": source, "sheet": clean(sheet_title), "block": block,
                     "subject": subject, "teacher": teacher,
                     "context": context_for(source, group, key), "clei": key, "group": group,
                     "student": clean(row[1]), "identification": clean(row[2]),
-                    "attendance": attendance, "grade": grade, "observation": "",
+                    "attendance": attendance, "grade": grade, "observation": observation,
                     "class_date": class_date,
                     "class_date_label": class_date.strftime("%d/%m/%Y") if class_date else "No identificada",
                     "week_mismatch": False,
