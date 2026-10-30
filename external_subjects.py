@@ -424,19 +424,99 @@ def _number_value(value):
     return int(number) if number.is_integer() else number
 
 
+def _date_label_from_values(values, sheet_title):
+    """Obtiene las fechas visibles de la hoja de prueba para el encabezado."""
+    if normalize(sheet_title) == "e":
+        return "14 al 16 de octubre de 2026"
+    dates = []
+    for row in values or []:
+        for value in row or []:
+            for parsed in extract_dates(clean(value), default_year=2026):
+                if parsed not in dates:
+                    dates.append(parsed)
+    dates.sort()
+    if not dates:
+        return "28 y 29 de octubre de 2026" if normalize(sheet_title) == "10" else "Fecha no identificada"
+    months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    if len(dates) == 1:
+        return f"{dates[0].day} de {months[dates[0].month - 1]} de {dates[0].year}"
+    if len({item.year for item in dates}) == 1 and len({item.month for item in dates}) == 1:
+        return f"{dates[0].day} y {dates[-1].day} de {months[dates[0].month - 1]} de {dates[0].year}"
+    return " · ".join(item.strftime("%d/%m/%Y") for item in dates)
+
+
 def exam_period_for_sheet(sheet_title):
-    """Devuelve la etiqueta visible de cada aplicación de la prueba."""
-    sheet_key = normalize(sheet_title)
-    if sheet_key == "10":
+    if normalize(sheet_title) == "10":
         return "Prueba complementaria · 28 y 29 de octubre de 2026"
     return "Prueba anterior · 14 al 16 de octubre de 2026"
 
 
+def _parse_complementary_results(values, sheet_title, source):
+    """Lee la hoja 10 como notas por materia, sin aciertos ni preguntas."""
+    rows = [[clean(value) for value in row] for row in (values or [])]
+    header_index = _header_row(rows)
+    if header_index is None:
+        return []
+    columns = []
+    for column, value in enumerate(rows[header_index]):
+        subject = subject_name(value)
+        if subject and not any(item[0] == subject and item[1] == column for item in columns):
+            columns.append((subject, column))
+    if not columns:
+        return []
+    period = _date_label_from_values(rows, sheet_title)
+    results = []
+    for row in rows[header_index + 1:]:
+        if not _is_data_row(row):
+            continue
+        clei = clean(row[4] if len(row) > 4 else "")
+        group = clean(row[3] if len(row) > 3 else "")
+        key = student_clei(clei, group)
+        subjects = {}
+        for subject, start_column in columns:
+            labels_by_offset = {
+                offset: " ".join(
+                    normalize(candidate_row[start_column + offset])
+                    for candidate_row in rows[header_index:header_index + 3]
+                    if start_column + offset < len(candidate_row)
+                )
+                for offset in range(3)
+            }
+            grade_column = start_column
+            attendance_column = None
+            for offset, label in labels_by_offset.items():
+                if any(marker in label for marker in ("nota", "calificacion", "puntaje", "score")):
+                    grade_column = start_column + offset
+                    break
+            for offset, label in labels_by_offset.items():
+                if any(marker in label for marker in ("asis", "asistencia", "presente")):
+                    attendance_column = start_column + offset
+                    break
+            if attendance_column is not None and grade_column == attendance_column:
+                grade_column = min(start_column + 1, max(0, len(row) - 1))
+            grade = _number_value(row[grade_column] if grade_column < len(row) else "")
+            attendance = clean(row[attendance_column]) if attendance_column is not None and attendance_column < len(row) else ""
+            subjects[subject] = {"grade": grade, "attendance": attendance, "pending": grade is None}
+        if not any(item["grade"] is not None for item in subjects.values()):
+            continue
+        results.append({
+            "source": source, "sheet": clean(sheet_title),
+            "exam_period": f"Prueba complementaria · {period}",
+            "exam_label": "Prueba complementaria", "exam_type": "grade_only",
+            "context": context_for(source, group, key), "clei": key, "group": group,
+            "student": clean(row[1]), "identification": clean(row[2]), "subjects": subjects,
+            "total_questions": 0, "correct_answers": 0,
+        })
+    return results
+
+
 def parse_exam_results(values, sheet_title, source, exam_period=None):
-    """Lee las hojas E y 10 de Alta como aplicaciones separadas de la prueba."""
+    """Lee E con su formato original y 10 como notas complementarias."""
     if normalize(sheet_title) not in {"e", "10"} or normalize(source) != "alta y clei normal":
         return []
-    exam_period = exam_period or exam_period_for_sheet(sheet_title)
+    if normalize(sheet_title) == "10":
+        return _parse_complementary_results(values, sheet_title, source)
+    exam_period = exam_period or f"Prueba anterior · {_date_label_from_values(values, sheet_title)}"
     rows = [[clean(value) for value in row] for row in (values or [])]
     header_index = _header_row(rows)
     if header_index is None:
@@ -449,8 +529,7 @@ def parse_exam_results(values, sheet_title, source, exam_period=None):
         group = clean(row[3] if len(row) > 3 else "")
         key = student_clei(clei, group)
         subjects = {}
-        total_questions = 0
-        total_correct = 0
+        total_questions = total_correct = 0
         for subject, (questions_column, correct_column, score_column) in EXAM_SUBJECT_COLUMNS.items():
             questions = _number_value(row[questions_column] if questions_column < len(row) else "")
             correct = _number_value(row[correct_column] if correct_column < len(row) else "")
@@ -459,11 +538,7 @@ def parse_exam_results(values, sheet_title, source, exam_period=None):
                 continue
             if correct is None and questions is not None:
                 correct = 0
-            subjects[subject] = {
-                "total_questions": questions,
-                "correct_answers": correct,
-                "score": score,
-            }
+            subjects[subject] = {"total_questions": questions, "correct_answers": correct, "score": score}
             if questions is not None:
                 total_questions += questions
             if correct is not None:
@@ -471,18 +546,11 @@ def parse_exam_results(values, sheet_title, source, exam_period=None):
         if not subjects:
             continue
         results.append({
-            "source": source,
-            "sheet": clean(sheet_title),
-            "exam_period": exam_period,
-            "exam_label": "Prueba complementaria" if normalize(sheet_title) == "10" else "Prueba anterior",
-            "context": context_for(source, group, key),
-            "clei": key,
-            "group": group,
-            "student": clean(row[1]),
-            "identification": clean(row[2]),
-            "subjects": subjects,
-            "total_questions": total_questions,
-            "correct_answers": total_correct,
+            "source": source, "sheet": clean(sheet_title), "exam_period": exam_period,
+            "exam_label": "Prueba anterior", "exam_type": "questions",
+            "context": context_for(source, group, key), "clei": key, "group": group,
+            "student": clean(row[1]), "identification": clean(row[2]), "subjects": subjects,
+            "total_questions": total_questions, "correct_answers": total_correct,
         })
     return results
 
