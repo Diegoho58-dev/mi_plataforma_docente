@@ -52,3 +52,29 @@ assert by_subject["Inglés"]["source"] == "Alta y CLEI normal"
 assert student["overall_average"] == 3.67
 assert student["graded_sessions"] == 6
 print("OK: promedios discriminados por materia, total y fuentes correctos.")
+
+external_records_with_own_subjects = external_records + [
+    {
+        "student": "Ana Pérez", "identification": "123", "group": "Grupo 3",
+        "clei": "CLEI 3B", "context": "Alta", "subject": "Matemáticas",
+        "attendance": "Sí", "grade": "5,0", "class_date": date(2026, 8, 1),
+        "class_date_label": "sábado 1 de agosto de 2026", "source": "Alta y CLEI normal",
+    },
+    {
+        "student": "Ana Pérez", "identification": "123", "group": "Grupo 3",
+        "clei": "CLEI 3B", "context": "Alta", "subject": "Ciencias Naturales",
+        "attendance": "Sí", "grade": "4,5", "class_date": date(2026, 8, 1),
+        "class_date_label": "sábado 1 de agosto de 2026", "source": "Alta y CLEI normal",
+    },
+]
+external_source_students = build_integrated_students(
+    base_records,
+    external_records_with_own_subjects,
+    external_grade_subjects={"Matemáticas", "Ciencias Naturales"},
+)
+external_by_subject = {item["subject"]: item for item in external_source_students[0]["subjects"]}
+assert external_by_subject["Matemáticas"]["average"] == 5.0
+assert external_by_subject["Ciencias Naturales"]["average"] == 4.5
+assert external_by_subject["Matemáticas"]["source"] == "Alta y CLEI normal"
+assert external_by_subject["Ciencias Naturales"]["source"] == "Alta y CLEI normal"
+print("OK: Estudiantes prioriza las notas de Matemáticas y Ciencias del Drive externo.")
