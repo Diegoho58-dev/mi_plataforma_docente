@@ -36,3 +36,11 @@ assert exam["correct_answers"] == 10
 assert exam["percentage"] == 40.0
 assert exam["subjects"][0]["percentage"] is not None
 print("OK: resultados de la pestaña E y total de pruebas correctos.")
+
+complementary = parse_exam_results(rows, "10", "Alta y CLEI normal")
+assert complementary[0]["exam_label"] == "Prueba complementaria"
+assert complementary[0]["exam_period"] == "Prueba complementaria · 28 y 29 de octubre de 2026"
+all_attempts = build_integrated_students([], [], exam_results=results + complementary)
+assert len(all_attempts[0]["exam_results"]["attempts"]) == 2
+assert [item["label"] for item in all_attempts[0]["exam_results"]["attempts"]] == ["Prueba anterior", "Prueba complementaria"]
+print("OK: la hoja 10 se conserva como segunda prueba junto a la hoja E.")
