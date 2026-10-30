@@ -424,10 +424,19 @@ def _number_value(value):
     return int(number) if number.is_integer() else number
 
 
-def parse_exam_results(values, sheet_title, source, exam_period="14 al 16 de octubre de 2026"):
-    """Lee la pestaña E sin mezclar sus resultados con las notas académicas."""
-    if normalize(sheet_title) != "e" or normalize(source) != "alta y clei normal":
+def exam_period_for_sheet(sheet_title):
+    """Devuelve la etiqueta visible de cada aplicación de la prueba."""
+    sheet_key = normalize(sheet_title)
+    if sheet_key == "10":
+        return "Prueba complementaria · 28 y 29 de octubre de 2026"
+    return "Prueba anterior · 14 al 16 de octubre de 2026"
+
+
+def parse_exam_results(values, sheet_title, source, exam_period=None):
+    """Lee las hojas E y 10 de Alta como aplicaciones separadas de la prueba."""
+    if normalize(sheet_title) not in {"e", "10"} or normalize(source) != "alta y clei normal":
         return []
+    exam_period = exam_period or exam_period_for_sheet(sheet_title)
     rows = [[clean(value) for value in row] for row in (values or [])]
     header_index = _header_row(rows)
     if header_index is None:
@@ -465,6 +474,7 @@ def parse_exam_results(values, sheet_title, source, exam_period="14 al 16 de oct
             "source": source,
             "sheet": clean(sheet_title),
             "exam_period": exam_period,
+            "exam_label": "Prueba complementaria" if normalize(sheet_title) == "10" else "Prueba anterior",
             "context": context_for(source, group, key),
             "clei": key,
             "group": group,
