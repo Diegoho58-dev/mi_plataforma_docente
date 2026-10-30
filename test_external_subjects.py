@@ -56,12 +56,12 @@ assert len(identity_variants) == 1
 
 multigrade_rows = [
     ["N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "CIENCIAS NATURALES", "MATEMÁTICAS / FÍSICA", "ESPAÑOL", "CIENCIAS SOCIALES", "INGLÉS"],
-    ["", "", "", "", "", "", "", "MULTIGRADO: 04/08/2026", "MULTIGRADO: 05/08/2026", "MULTIGRADO: 06/08/2026"],
+    ["", "", "", "", "", "MULTIGRADO: 02/08/2026", "MULTIGRADO: 03/08/2026", "MULTIGRADO: 04/08/2026", "MULTIGRADO: 05/08/2026", "MULTIGRADO: 06/08/2026"],
     ["Asis.", "", "", "", "", "", "", "Nota", "Nota", "Nota"],
     [1, "MULTI PRUEBA", "123", "4", "GRUPO 6 MULTIGRADO", "", "", "Si", 8, "No", 0, "Si", 9],
 ]
 multigrade_records = parse_values(multigrade_rows, "1", "Multigrado / Mediana")
-assert {item["subject"] for item in multigrade_records} == {"Español", "Ciencias Sociales", "Inglés"}
+assert {item["subject"] for item in multigrade_records} == {"Matemáticas", "Ciencias Naturales", "Español", "Ciencias Sociales", "Inglés"}
 assert {item["clei"] for item in multigrade_records} == {"MULTIGRADO"}
 
 workbook = Workbook()
@@ -70,7 +70,7 @@ sheet.title = "Semana 4"
 sheet.append(["", "", "", "", "", "", "", "", ""])
 sheet.append(["", "Áreas docente Ana Maria Carvajal", "", "", "", "", "", "", ""])
 sheet.append(["", "", "", "", "", "", "", "", ""])
-sheet.append(["", "N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "ESPAÑOL CLEI 3A: 01/08/2026 y 08/08/2026", "CIENCIAS NATURALES", "INGLÉS"])
+sheet.append(["", "N°", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "CLEI ASIGNADO", "GRUPO ASIGNADO", "ESPAÑOL CLEI 3A: 01/08/2026 y 08/08/2026", "CIENCIAS NATURALES CLEI 3A: 02/08/2026", "INGLÉS"])
 sheet.append(["", "", "", "", "", "", "", "", ""])
 sheet.append(["", "", "", "", "", "", "", "", ""])
 sheet.append(["", "", "", "", "", "", "", "", ""])
@@ -86,8 +86,8 @@ buffer = io.BytesIO()
 workbook.save(buffer)
 records = parse_workbook(buffer, "Alta y CLEI normal", default_year=2026)
 assert any(item["subject"] == "Español" for item in records)
-assert not any(item["subject"] in {"Matemáticas", "Ciencias Naturales"} for item in records)
+assert "Ciencias Naturales" in {item["subject"] for item in records}
 assert summarize(records)["records"] >= 1
 assert {item["class_date"].isoformat() for item in records if item["subject"] == "Español"} == {"2026-08-01", "2026-08-08"}
-print("OK: parser externo excluye Matemáticas/Ciencias y conserva registros detallados.")
+print("OK: parser externo incluye todas las materias y conserva registros detallados.")
 print("OK: parser externo conserva todas las fechas del encabezado.")
