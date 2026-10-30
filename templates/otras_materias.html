@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Otras materias | Panel Docente{% endblock %}
+{% block title %}Todas las materias | Panel Docente{% endblock %}
 {% block content %}
 <section class="welcome-section">
   <p class="eyebrow">ESTUDIANTES</p>
-  <h1>Otras materias por fecha y CLEI</h1>
-  <p class="subtitle">Consulta asistencia y notas individuales de Español, Ciencias Sociales e Inglés, organizadas por cada fecha real de clase.</p>
+  <h1>Todas las materias por fecha y CLEI</h1>
+  <p class="subtitle">Consulta asistencia y notas individuales de Matemáticas, Ciencias Naturales, Español, Ciencias Sociales e Inglés, organizadas por cada fecha real de clase.</p>
 </section>
 
 {% if data_error %}<div class="notice">{{ data_error }}</div>{% endif %}
@@ -13,7 +13,7 @@
 </div>
 
 <section class="groups-toolbar external-groups-toolbar">
-  <form method="get" action="{{ url_for('otras_materias') }}">
+  <form method="get" action="{{ url_for('todaslasmaterias') }}">
     <label for="fuente">Fuente</label>
     <select id="fuente" name="fuente">
       <option value="">Todas</option>
@@ -79,13 +79,9 @@
       <tr>
         <th class="student-column">Estudiante</th>
         {% for date_key, date_label in dates %}<th class="date-column">{{ date_label }}</th>{% endfor %}
-        <th class="average-column">Faltas<br>Español</th>
-        <th class="average-column">Faltas<br>Ciencias Sociales</th>
-        <th class="average-column">Faltas<br>Inglés</th>
+        {% for subject in display_subjects %}<th class="average-column">Faltas<br>{{ subject }}</th>{% endfor %}
         <th class="average-column">Total<br>Faltas</th>
-        <th class="average-column">Promedio<br>Español</th>
-        <th class="average-column">Promedio<br>Ciencias Sociales</th>
-        <th class="average-column">Promedio<br>Inglés</th>
+        {% for subject in display_subjects %}<th class="average-column">Promedio<br>{{ subject }}</th>{% endfor %}
       </tr>
     </thead>
     <tbody>
@@ -108,16 +104,12 @@
           {% endfor %}
         </td>
         {% endfor %}
-        <td class="average-column"><strong>{{ student.absences_by_subject.get('Español', 0) }}</strong></td>
-        <td class="average-column"><strong>{{ student.absences_by_subject.get('Ciencias Sociales', 0) }}</strong></td>
-        <td class="average-column"><strong>{{ student.absences_by_subject.get('Inglés', 0) }}</strong></td>
+        {% for subject in display_subjects %}<td class="average-column"><strong>{{ student.absences_by_subject.get(subject, 0) }}</strong></td>{% endfor %}
         <td class="average-column"><strong>{{ student.total_absences }}</strong></td>
-        <td class="average-column">{% if student.subject_averages.get('Español') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Español']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
-        <td class="average-column">{% if student.subject_averages.get('Ciencias Sociales') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Ciencias Sociales']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
-        <td class="average-column">{% if student.subject_averages.get('Inglés') is not none %}<strong>{{ '%.2f'|format(student.subject_averages['Inglés']) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
+        {% for subject in display_subjects %}<td class="average-column">{% if student.subject_averages.get(subject) is not none %}<strong>{{ '%.2f'|format(student.subject_averages[subject]) }}</strong>{% else %}<span class="empty-cell">—</span>{% endif %}</td>{% endfor %}
       </tr>
       {% else %}
-      <tr><td colspan="{{ dates|length + 8 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>
+      <tr><td colspan="{{ dates|length + (display_subjects|length * 2) + 2 }}" class="empty-state">No hay registros para los filtros seleccionados.</td></tr>
       {% endfor %}
     </tbody>
   </table>
