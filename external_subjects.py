@@ -428,6 +428,10 @@ def _date_label_from_values(values, sheet_title):
     """Obtiene las fechas visibles de la hoja de prueba para el encabezado."""
     if normalize(sheet_title) == "e":
         return "14 al 16 de octubre de 2026"
+    # La hoja 10 puede conservar fechas históricas de la planilla; no deben
+    # reemplazar la fecha real de la prueba complementaria.
+    if normalize(sheet_title) == "10":
+        return "28 y 29 de octubre de 2026"
     dates = []
     for row in values or []:
         for value in row or []:
