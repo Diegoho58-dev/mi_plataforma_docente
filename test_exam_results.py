@@ -44,3 +44,16 @@ all_attempts = build_integrated_students([], [], exam_results=results + compleme
 assert len(all_attempts[0]["exam_results"]["attempts"]) == 2
 assert [item["label"] for item in all_attempts[0]["exam_results"]["attempts"]] == ["Prueba anterior", "Prueba complementaria"]
 print("OK: la hoja 10 se conserva como segunda prueba junto a la hoja E.")
+
+sheet10_rows = [
+    ["Prueba complementaria 28/10/2026 y 29/10/2026"],
+    ["", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "GRUPO ASIGNADO", "CLEI ASIGNADO", "CIENCIAS NATURALES", "", "MATEMÁTICAS / FÍSICA", "", "ESPAÑOL", ""],
+    ["N°", "", "", "", "", "ASISTENCIA", "NOTA", "ASISTENCIA", "NOTA", "ASISTENCIA", "NOTA"],
+    [1, "ANA PEREZ", "123", "GRUPO 4", "4", "", "", "Sí", 4.7, "", ""],
+]
+complementary_grade_only = parse_exam_results(sheet10_rows, "10", "Alta y CLEI normal")
+assert complementary_grade_only[0]["exam_type"] == "grade_only"
+assert complementary_grade_only[0]["exam_period"] == "Prueba complementaria · 28 y 29 de octubre de 2026"
+assert complementary_grade_only[0]["subjects"]["Matemáticas"]["grade"] == 4.7
+assert complementary_grade_only[0]["subjects"]["Ciencias Naturales"]["pending"] is True
+print("OK: hoja 10 muestra solo notas por materia y marca pendientes sin nota.")
