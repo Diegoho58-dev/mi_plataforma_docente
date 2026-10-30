@@ -20,6 +20,13 @@ OWN_SUBJECT_MARKERS = {
     "ciencias naturales",
 }
 
+OWN_SUBJECTS = {
+    "matematicas": "Matemáticas",
+    "matematicas fisica": "Matemáticas",
+    "fisica": "Matemáticas",
+    "ciencias naturales": "Ciencias Naturales",
+}
+
 EXTERNAL_SUBJECTS = {
     "espanol": "Español",
     "lengua castellana": "Español",
@@ -27,6 +34,8 @@ EXTERNAL_SUBJECTS = {
     "sociales": "Ciencias Sociales",
     "ingles": "Inglés",
 }
+
+ALL_SUBJECTS = {**EXTERNAL_SUBJECTS, **OWN_SUBJECTS}
 
 CLEI_LABELS = (
     "CLEI 5-6", "CLEI 5", "CLEI 6", "CLEI 3A", "CLEI 3B",
@@ -64,7 +73,7 @@ def normalize(value):
 def subject_name(value):
     key = normalize(value).replace("/", " ")
     key = re.sub(r"\s+", " ", key).strip()
-    for marker, label in EXTERNAL_SUBJECTS.items():
+    for marker, label in sorted(ALL_SUBJECTS.items(), key=lambda item: len(item[0]), reverse=True):
         if marker in key:
             return label
     return ""
@@ -178,7 +187,7 @@ def _subject_columns(rows, header_index):
     for row_index in (header_index,):
         for column, value in enumerate(rows[row_index]):
             label = subject_name(value)
-            if not label or is_own_subject(value):
+            if not label:
                 continue
             if not any(item[0] == label and item[1] == column for item in found):
                 found.append((label, column, row_index))
@@ -298,8 +307,6 @@ def parse_workbook(buffer, source, default_year=2026):
         block = sheet_block_label(worksheet.title, source)
         subject_specs = []
         for subject, start_column, _ in columns:
-            if is_own_subject(subject):
-                continue
             dates_by_clei = _subject_date_map(
                 _header_text(preview, start_column, header_index),
                 default_year,
@@ -361,8 +368,6 @@ def parse_values(values, sheet_title, source, default_year=2026):
     block = sheet_block_label(sheet_title, source)
     subject_specs = []
     for subject, start_column, _ in columns:
-        if is_own_subject(subject):
-            continue
         dates_by_clei = _subject_date_map(_header_text(rows, start_column, header_index), default_year)
         subject_specs.append((subject, start_column, dates_by_clei, teachers.get(subject, "No identificado"), _observation_columns(rows[header_index], start_column)))
 
@@ -527,7 +532,7 @@ def summarize(records):
 
 __all__ = [
     "parse_workbook", "parse_values", "parse_exam_results", "consolidate_records", "build_external_matrix", "mark_week_mismatches", "summarize",
-    "EXTERNAL_SUBJECTS", "OWN_SUBJECT_MARKERS",
+    "EXTERNAL_SUBJECTS", "OWN_SUBJECTS", "ALL_SUBJECTS", "OWN_SUBJECT_MARKERS",
 ]
 
 
