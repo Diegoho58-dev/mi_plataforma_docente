@@ -1,0 +1,86 @@
+import os
+
+os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("ADMIN_USER", "admin")
+os.environ.setdefault("ADMIN_PASSWORD", "password")
+os.environ.setdefault("GOOGLE_DRIVE_ENABLED", "false")
+
+from app import build_integrated_students
+from external_subjects import parse_exam_results
+
+rows = [
+    ["PLANILLA DE SEGUIMIENTO EXÁMENES"],
+    ["Centro"],
+    ["Fecha (DD/MM/AAAA)"],
+    ["Examen Inicial/intermedio/final"],
+    ["Monitor Aula"],
+    ["Profesor que acompaña la prueba"],
+    ["", "APELLIDOS Y NOMBRES / INTERNO", "IDENTIFICACIÓN", "GRUPO ASIGNADO", "CLEI ASIGNADO", "CIENCIAS NATURALES", "", "", "MATEMÁTICAS / FÍSICA", "", "", "ESPAÑOL", "", "", "CIENCIAS SOCIALES", "", "", "INGLÉS", "", ""],
+    ["N°", "", "", "", "", "TOTAL PREGUNTAS", "TOTAL RESPUESTAS", "CORTE 1", "TOTAL PREGUNTAS", "TOTAL RESPUESTAS", "CORTE 1", "TOTAL PREGUNTAS", "TOTAL RESPUESTAS", "CORTE 1", "TOTAL PREGUNTAS", "TOTAL RESPUESTAS", "CORTE 1", "TOTAL PREGUNTAS", "TOTAL RESPUESTAS", "CORTE 1"],
+    [],
+    ["1", "ANA PEREZ", "123", "GRUPO 4", "4", 5, 2, 4, 5, 3, 6, 5, 4, 8, 5, 1, 2, 5, 0, 0],
+]
+
+results = parse_exam_results(rows, "E", "Alta y CLEI normal")
+assert len(results) == 1
+result = results[0]
+assert result["subjects"]["Ciencias Naturales"]["total_questions"] == 5
+assert result["subjects"]["Ciencias Naturales"]["correct_answers"] == 2
+assert result["total_questions"] == 25
+assert result["correct_answers"] == 10
+
+students = build_integrated_students([], [], exam_results=results)
+exam = students[0]["exam_results"]
+assert exam["total_questions"] == 25
+assert exam["correct_answers"] == 10
+assert exam["percentage"] == 40.0
+assert exam["subjects"][0]["percentage"] is not None
+print("OK: resultados de la pestaña E y total de pruebas correctos.")
+
+complementary = parse_exam_results(rows, "10", "Alta y CLEI normal")
+assert complementary[0]["exam_label"] == "Prueba complementaria"
+assert complementary[0]["exam_period"] == "Prueba complementaria · 28 y 29 de octubre de 2026"
+all_attempts = build_integrated_students([], [], exam_results=results + complementary)
+assert len(all_attempts[0]["exam_results"]["attempts"]) == 2
+assert [item["label"] for item in all_attempts[0]["exam_results"]["attempts"]] == ["Prueba anterior", "Prueba complementaria"]
+print("OK: la hoja 10 se conserva como segunda prueba junto a la hoja E.")
+
+sheet10_rows = [
+    ["Prueba complementaria 28/10/2026 y 29/10/2026"],
+    ["", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "GRUPO ASIGNADO", "CLEI ASIGNADO", "CIENCIAS NATURALES", "", "MATEMÁTICAS / FÍSICA", "", "ESPAÑOL", ""],
+    ["N°", "", "", "", "", "ASISTENCIA", "NOTA", "ASISTENCIA", "NOTA", "ASISTENCIA", "NOTA"],
+    [1, "ANA PEREZ", "123", "GRUPO 4", "4", "", "", "Sí", 4.7, "", ""],
+]
+complementary_grade_only = parse_exam_results(sheet10_rows, "10", "Alta y CLEI normal")
+assert complementary_grade_only[0]["exam_type"] == "grade_only"
+assert complementary_grade_only[0]["exam_period"] == "Prueba complementaria · 28 y 29 de octubre de 2026"
+assert complementary_grade_only[0]["subjects"]["Matemáticas"]["grade"] == 4.7
+assert complementary_grade_only[0]["subjects"]["Ciencias Naturales"]["pending"] is True
+print("OK: hoja 10 muestra solo notas por materia y marca pendientes sin nota.")
+
+sheet9_rows = [
+    ["Autoevaluación"],
+    ["", "APELLIDOS Y NOMBRES", "IDENTIFICACIÓN", "GRUPO ASIGNADO", "CLEI ASIGNADO", "MATEMÁTICAS / FÍSICA", "", "CIENCIAS NATURALES", ""],
+    ["N°", "", "", "", "", "ASISTENCIA", "NOTA", "ASISTENCIA", "NOTA"],
+    [1, "ANA PEREZ", "123", "GRUPO 4", "4", "Sí", 8, "Sí", 8],
+]
+self_assessment = parse_exam_results(sheet9_rows, "9", "Alta y CLEI normal")
+assert self_assessment[0]["exam_label"] == "Autoevaluación"
+assert self_assessment[0]["exam_type"] == "self_assessment"
+academic_records = [{
+    "name": "ANA PEREZ", "identification": "123", "group": "GRUPO 4", "clei": "4", "context": "Alta",
+    "math_attendance": "Sí", "math_grade": 7, "science_attendance": "Sí", "science_grade": 7,
+}]
+final_students = build_integrated_students(academic_records, [], exam_results=results + [
+    {**complementary_grade_only[0], "subjects": {"Matemáticas": {"grade": 7, "attendance": "Sí", "pending": False}}},
+] + self_assessment)
+final_exam = final_students[0]["exam_results"]
+assert final_exam["academic_score"] == 7.0
+assert final_exam["final_score"] == 6.5
+assert final_exam["final_percentage"] == 65.0
+assert final_exam["final_label"] == "Promovido"
+duplicate_students = build_integrated_students(academic_records, [], exam_results=results + results + [
+    {**complementary_grade_only[0], "subjects": {"Matemáticas": {"grade": 7, "attendance": "Sí", "pending": False}}},
+] + self_assessment)
+assert len([item for item in duplicate_students[0]["exam_results"]["attempts"] if item["type"] == "questions"]) == 1
+print("OK: conglomerado académico, promedio final y deduplicación funcionan.")
