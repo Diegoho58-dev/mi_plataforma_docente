@@ -14,7 +14,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from gemini_planning import GeminiPlanningError, generate_followup_analysis, generate_planning_proposal, generate_self_study_guide
-from external_subjects import build_external_matrix, clei_key, consolidate_records, mark_week_mismatches, parse_exam_results, parse_values, summarize
+from external_subjects import build_external_matrix, clei_key, consolidate_records, mark_week_mismatches, normalize, parse_exam_results, parse_values, summarize
 
 app = Flask(__name__)
 
