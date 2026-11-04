@@ -2036,6 +2036,8 @@ def build_integrated_students(base_records, external_records, exam_results=None,
                     **dict(stats),
                     "percentage": round(stats.get("correct_answers", 0) * 100 / stats.get("total_questions"), 1)
                     if stats.get("total_questions") else None,
+                    "score_out_of_10": round(stats.get("correct_answers", 0) * 10 / stats.get("total_questions"), 2)
+                    if stats.get("total_questions") else None,
                 }
                 for subject, stats in (item.get("subjects") or {}).items()
             },
@@ -2047,11 +2049,15 @@ def build_integrated_students(base_records, external_records, exam_results=None,
             if stats.get("grade") is not None and not stats.get("pending")
         ]
         attempt["grade_average"] = round(sum(valid_grades) / len(valid_grades), 2) if valid_grades else None
-        attempt["percentage"] = round(attempt["correct_answers"] * 100 / attempt["total_questions"], 1) if attempt["total_questions"] else None
+        subject_scores = [
+            stats.get("score_out_of_10") for stats in attempt["subjects"].values()
+            if stats.get("score_out_of_10") is not None
+        ]
         attempt["score_out_of_10"] = (
             attempt["grade_average"] if attempt["type"] in {"grade_only", "self_assessment"}
-            else round(attempt["percentage"] / 10, 2) if attempt["percentage"] is not None else None
+            else round(sum(subject_scores) / len(subject_scores), 2) if subject_scores else None
         )
+        attempt["percentage"] = round(attempt["score_out_of_10"] * 10, 1) if attempt["score_out_of_10"] is not None else None
         duplicate = next(
             (
                 current for current in exam["attempts"]
