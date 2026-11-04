@@ -488,7 +488,7 @@ def _parse_grade_results(values, sheet_title, source, exam_label, exam_type, per
             grade_column = start_column
             attendance_column = None
             for offset, label in labels_by_offset.items():
-                if any(marker in label for marker in ("nota", "calificacion", "puntaje", "score")):
+                if any(marker in label for marker in ("nota", "calificacion", "puntaje", "score", "autoevalu", "evaluacion")):
                     grade_column = start_column + offset
                     break
             for offset, label in labels_by_offset.items():
@@ -502,22 +502,28 @@ def _parse_grade_results(values, sheet_title, source, exam_label, exam_type, per
             # encabezado. En ese caso, busca el primer valor numérico del bloque
             # de la materia, sin confundir la asistencia textual con la nota.
             if grade is None:
+                numeric_candidates = []
                 for candidate_column in range(start_column, min(len(row), start_column + 3)):
                     if candidate_column == attendance_column:
                         continue
                     candidate_grade = _number_value(row[candidate_column])
                     if candidate_grade is not None:
-                        grade = candidate_grade
-                        grade_column = candidate_column
-                        break
+                        numeric_candidates.append((candidate_column, candidate_grade))
+                # Cuando no existe el rótulo "Nota", el último valor numérico
+                # del bloque suele ser la evaluación; el primero puede ser un
+                # conteo de asistencia (por ejemplo, 3).
+                if numeric_candidates:
+                    grade_column, grade = numeric_candidates[-1]
             attendance = clean(row[attendance_column]) if attendance_column is not None and attendance_column < len(row) else ""
-            # En la hoja 10 la asistencia "No" invalida la nota de esa
-            # materia. En la hoja 9 la columna puede conservar un estado
-            # administrativo, pero la autoevaluación numérica sí es válida.
-            attendance_is_no = (
-                normalize(sheet_title) == "10"
-                and normalize(attendance) in {"no", "n", "no asistio"}
-            )
+            if not attendance and grade_column > start_column:
+                for candidate_column in range(start_column, grade_column):
+                    candidate_value = clean(row[candidate_column])
+                    if normalize(candidate_value) in {"no", "n", "0", "o", "no asistio", "no asistió"}:
+                        attendance = candidate_value
+                        break
+            # En ambas hojas, una asistencia No/0 significa que no hay nota
+            # válida para esa materia, aunque exista un número en otra columna.
+            attendance_is_no = normalize(attendance) in {"no", "n", "0", "o", "no asistio"}
             subjects[subject] = {
                 "grade": grade,
                 "attendance": attendance,
