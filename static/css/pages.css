@@ -135,3 +135,10 @@
 .evaluation-final > b { display:block; margin-top:8px; color:var(--navy); font-size:12px; }
 @media(max-width:1200px){.evaluation-board{grid-template-columns:repeat(2,minmax(170px,1fr));min-width:360px}.evaluations-cell{min-width:360px}}
 @media(max-width:700px){.evaluation-board{grid-template-columns:1fr;min-width:190px}.evaluations-cell{min-width:190px}}
+
+
+.evaluation-header-grid { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:8px; align-items:stretch; }
+.evaluation-header-grid span { display:block; padding:4px 6px; color:var(--navy); font-weight:800; font-size:11px; }
+.evaluation-header-grid small { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:500; }
+@media(max-width:1200px){.evaluation-header-grid{grid-template-columns:repeat(2,minmax(170px,1fr))}}
+@media(max-width:700px){.evaluation-header-grid{grid-template-columns:1fr}}
