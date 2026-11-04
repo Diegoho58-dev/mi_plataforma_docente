@@ -498,6 +498,18 @@ def _parse_grade_results(values, sheet_title, source, exam_label, exam_type, per
             if attendance_column is not None and grade_column == attendance_column:
                 grade_column = min(start_column + 1, max(0, len(row) - 1))
             grade = _number_value(row[grade_column] if grade_column < len(row) else "")
+            # Algunas versiones de las hojas 9 y 10 no escriben "Nota" en el
+            # encabezado. En ese caso, busca el primer valor numérico del bloque
+            # de la materia, sin confundir la asistencia textual con la nota.
+            if grade is None:
+                for candidate_column in range(start_column, min(len(row), start_column + 3)):
+                    if candidate_column == attendance_column:
+                        continue
+                    candidate_grade = _number_value(row[candidate_column])
+                    if candidate_grade is not None:
+                        grade = candidate_grade
+                        grade_column = candidate_column
+                        break
             attendance = clean(row[attendance_column]) if attendance_column is not None and attendance_column < len(row) else ""
             attendance_is_no = normalize(attendance) in {"no", "n", "no asistio"}
             subjects[subject] = {
