@@ -2056,7 +2056,6 @@ def build_integrated_students(base_records, external_records, exam_results=None,
             (
                 current for current in exam["attempts"]
                 if current.get("type") == attempt.get("type")
-                and current.get("sheet") == attempt.get("sheet")
             ),
             None,
         )
