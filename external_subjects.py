@@ -511,7 +511,13 @@ def _parse_grade_results(values, sheet_title, source, exam_label, exam_type, per
                         grade_column = candidate_column
                         break
             attendance = clean(row[attendance_column]) if attendance_column is not None and attendance_column < len(row) else ""
-            attendance_is_no = normalize(attendance) in {"no", "n", "no asistio"}
+            # En la hoja 10 la asistencia "No" invalida la nota de esa
+            # materia. En la hoja 9 la columna puede conservar un estado
+            # administrativo, pero la autoevaluación numérica sí es válida.
+            attendance_is_no = (
+                normalize(sheet_title) == "10"
+                and normalize(attendance) in {"no", "n", "no asistio"}
+            )
             subjects[subject] = {
                 "grade": grade,
                 "attendance": attendance,
