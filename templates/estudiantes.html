@@ -13,6 +13,14 @@
   <div><label for="clei">CLEI</label><select id="clei" name="clei"><option value="">Todos</option>{% for clei in cleis %}<option value="{{ clei }}" {% if clei == clei_filter %}selected{% endif %}>{% if clei == 'Multigrado' %}Multigrado{% else %}CLEI {{ clei }}{% endif %}</option>{% endfor %}</select></div>
   <button class="primary-button" type="submit">Filtrar</button>
 </form>
+<form class="student-report-toolbar" method="get" action="{{ url_for('descargar_reportes_evaluaciones') }}">
+  <label for="reporte-clei">Generar reporte consolidado del CLEI</label>
+  <select id="reporte-clei" name="clei" required>
+    <option value="">Selecciona un CLEI</option>
+    {% for clei in cleis %}<option value="{{ clei }}">{% if clei == 'Multigrado' %}Multigrado{% else %}CLEI {{ clei }}{% endif %}</option>{% endfor %}
+  </select>
+  <button class="secondary-button" type="submit">Descargar reporte PDF</button>
+</form>
 <div class="student-summary">
   <div class="student-summary-card"><strong>{{ total_students }}</strong><span>Estudiantes encontrados</span></div>
   <div class="student-summary-card"><strong>{{ subjects|length }}</strong><span>Materias con registros</span></div>
