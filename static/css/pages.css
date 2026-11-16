@@ -142,3 +142,9 @@
 .evaluation-header-grid small { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:500; }
 @media(max-width:1200px){.evaluation-header-grid{grid-template-columns:repeat(2,minmax(170px,1fr))}}
 @media(max-width:700px){.evaluation-header-grid{grid-template-columns:1fr}}
+
+.student-report-toolbar { display:flex; align-items:end; gap:10px; margin:12px 0 16px; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:#f8fbfb; }
+.student-report-toolbar label { font-size:11px; font-weight:700; color:var(--navy); }
+.student-report-toolbar select { min-width:150px; }
+@media(max-width:700px){.student-report-toolbar{align-items:stretch; flex-direction:column;}}
+
